@@ -1,3 +1,9 @@
+# Ignore all
+*
+
+# Unignore all with extensions
+!*.*
+
 # Binaries for programs and plugins
 *.exe
 *.dll
