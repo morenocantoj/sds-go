@@ -3,6 +3,9 @@
 *.dll
 *.so
 *.dylib
+*.pem
+*.cert
+*.key
 
 # Test binary, build with `go test -c`
 *.test
