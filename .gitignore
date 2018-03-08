@@ -4,6 +4,9 @@
 # Unignore all with extensions
 !*.*
 
+# Unignore all dirs
+!*/
+
 # Binaries for programs and plugins
 *.exe
 *.dll
