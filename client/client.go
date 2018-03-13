@@ -21,6 +21,19 @@ func main() {
 	client()
 }
 
+func menu() string {
+	fmt.Println("--- CIFRADO DEL CÉSAR ---")
+	fmt.Println("1- CODIFICAR")
+	fmt.Println("2- DESCODIFICAR")
+	fmt.Println("3- CONFIGURAR DESPLAZAMIENTO")
+	fmt.Println("Q- SALIR")
+	fmt.Print("Opción: ")
+	var input string
+	fmt.Scanf("%s\n", &input)
+
+	return input
+}
+
 // gestiona el modo cliente
 func client() {
 
@@ -31,10 +44,19 @@ func client() {
 	}
 	client := &http.Client{Transport: tr}
 
-	// ** ejemplo de registro
-	data := url.Values{}                   // estructura para contener los valores
-	data.Set("cmd", "hola")                // comando (string)
-	data.Set("mensaje", "super_aran_user") // usuario (string)
+	var username string
+	var password string
+	fmt.Printf("Introduce usuario: ")
+	fmt.Scanf("%s\n", &username)
+	fmt.Println()
+	fmt.Printf("Introduce contraseña: ")
+	fmt.Scanf("%s\n", &password)
+
+	// Estructura de datos
+	data := url.Values{}
+	data.Set("cmd", "login")
+	data.Set("username", username)
+	data.Set("password", password)
 
 	r, err := client.PostForm("https://localhost:10443", data) // enviamos por POST
 	chk(err)

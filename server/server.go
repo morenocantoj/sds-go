@@ -61,6 +61,16 @@ func server() {
 	log.Println("Servidor detenido correctamente")
 }
 
+/**
+* Checks username and password in database
+* @param username
+* @param password
+ */
+func checkLogin(username string, password string) bool {
+	// TODO: Check with database
+	return true
+}
+
 func handler(w http.ResponseWriter, req *http.Request) {
 	req.ParseForm()                              // es necesario parsear el formulario
 	w.Header().Set("Content-Type", "text/plain") // cabecera estándar
@@ -69,6 +79,13 @@ func handler(w http.ResponseWriter, req *http.Request) {
 	case "hola": // ** registro
 		response(w, true, "Hola "+req.Form.Get("mensaje"))
 		fmt.Println("Arancha me ha hecho una petición desde su pobre ordenador")
+	case "login": // Check login
+		username := req.Form.Get("username")
+		password := req.Form.Get("password")
+		if checkLogin(username, password) {
+			fmt.Println("Usuario " + username + " autenticado en el sistema")
+			response(w, true, "Hola de nuevo "+username)
+		}
 	default:
 		response(w, false, "Comando inválido")
 	}
