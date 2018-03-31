@@ -75,6 +75,13 @@ func client() {
 	fmt.Println(loginResponse)
 	if loginResponse.Ok {
 		fmt.Println(loginResponse.Msg)
+
+		// User menu
+		var optMenu string = menu()
+		for optMenu != "Q" {
+			optMenu = menu()
+		}
+
 	} else {
 		// Volver atras
 		fmt.Println(loginResponse.Msg)
