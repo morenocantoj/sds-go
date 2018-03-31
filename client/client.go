@@ -2,12 +2,17 @@ package main
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
-	"os"
 )
+
+type loginStruct struct {
+	Ok  bool
+	Msg string
+}
 
 // función para comprobar errores (ahorra escritura)
 func chk(e error) {
@@ -22,10 +27,9 @@ func main() {
 }
 
 func menu() string {
-	fmt.Println("--- CIFRADO DEL CÉSAR ---")
-	fmt.Println("1- CODIFICAR")
-	fmt.Println("2- DESCODIFICAR")
-	fmt.Println("3- CONFIGURAR DESPLAZAMIENTO")
+	fmt.Println("--- ÆCLOUD MENÚ ---")
+	fmt.Println("1- SUBIR FICHERO")
+	fmt.Println("2- DESCARGAR FICHERO")
 	fmt.Println("Q- SALIR")
 	fmt.Print("Opción: ")
 	var input string
@@ -60,6 +64,21 @@ func client() {
 
 	r, err := client.PostForm("https://localhost:10443", data) // enviamos por POST
 	chk(err)
-	io.Copy(os.Stdout, r.Body) // mostramos el cuerpo de la respuesta (es un reader)
-	fmt.Println()
+	// Solo podemos leer una vez el body
+	b, err := ioutil.ReadAll(r.Body)
+
+	var loginResponse loginStruct
+	err = json.Unmarshal(b, &loginResponse)
+
+	defer r.Body.Close()
+
+	fmt.Println(loginResponse)
+	if loginResponse.Ok {
+		fmt.Println(loginResponse.Msg)
+	} else {
+		// Volver atras
+		fmt.Println(loginResponse.Msg)
+
+	}
+
 }
