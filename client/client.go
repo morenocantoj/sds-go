@@ -79,6 +79,15 @@ func client() {
 		// User menu
 		var optMenu string = menu()
 		for optMenu != "Q" {
+			switch optMenu {
+			case "1":
+				//TODO: Implement upload menu
+				uploadFile()
+			case "2":
+				//TODO: Implement download menu
+			default:
+				fmt.Println("Opción incorrecta!")
+			}
 			optMenu = menu()
 		}
 
@@ -87,5 +96,8 @@ func client() {
 		fmt.Println(loginResponse.Msg)
 
 	}
+}
 
+func uploadFile() {
+	fmt.Println("Falta por implementar!!")
 }
