@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +12,8 @@ import (
 	"os"
 	"os/signal"
 	"time"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
 // función para comprobar errores (ahorra escritura)
@@ -23,6 +27,11 @@ func chk(e error) {
 type resp struct {
 	Ok  bool   // true -> correcto, false -> error
 	Msg string // mensaje adicional
+}
+
+type user struct {
+	Username string
+	Password string
 }
 
 // función para escribir una respuesta del servidor
@@ -61,6 +70,18 @@ func server() {
 	log.Println("Servidor detenido correctamente")
 }
 
+// función para codificar de []bytes a string (Base64)
+func encode64(data []byte) string {
+	return base64.StdEncoding.EncodeToString(data) // sólo utiliza caracteres "imprimibles"
+}
+
+// función para decodificar de string a []bytes (Base64)
+func decode64(s string) []byte {
+	b, err := base64.StdEncoding.DecodeString(s) // recupera el formato original
+	chk(err)                                     // comprobamos el error
+	return b                                     // devolvemos los datos originales
+}
+
 /**
 * Checks username and password in database
 * @param username
@@ -68,6 +89,27 @@ func server() {
  */
 func checkLogin(username string, password string) bool {
 	// TODO: Check with database
+	return true
+}
+
+func registerUser(username string, password string) bool {
+	if username == "" || password == "" {
+		return false
+	}
+
+	// Open database
+	db, err := sql.Open("mysql", "sds:sds@/sds")
+	chk(err)
+
+	// Check if email is already in database
+	stmtOut, err := db.Prepare("SELECT * FROM user WHERE number = ?")
+	chk(err)
+
+	defer stmtOut.Close()
+
+	// Hash to password + bcrypt to hash
+
+	defer db.Close()
 	return true
 }
 
@@ -85,6 +127,13 @@ func handler(w http.ResponseWriter, req *http.Request) {
 		if checkLogin(username, password) {
 			fmt.Println("Usuario " + username + " autenticado en el sistema")
 			response(w, true, "Hola de nuevo "+username)
+		}
+	case "register":
+		username := req.Form.Get("username")
+		password := req.Form.Get("password")
+		if registerUser(username, password) {
+			fmt.Println("Se ha registrado un nuevo usuario " + username)
+			response(w, true, "Registrado correctamente")
 		}
 	default:
 		response(w, false, "Comando inválido")
