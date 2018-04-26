@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha512"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
@@ -62,7 +63,7 @@ func decode64(s string) []byte {
 	return b                                     // devolvemos los datos originales
 }
 
-func register() {
+func register() (string, string) {
 	var username string
 	var password []byte
 	var password_repeat []byte
@@ -78,13 +79,19 @@ func register() {
 		chk(err)
 
 		if encode64(password) != encode64(password_repeat) {
-			fmt.Println("¡Las contraseñas no coinciden!")
-
+			fmt.Printf("¡Las contraseñas no coinciden!")
+			return "", ""
 		} else {
 			// Send data to server encrypted
+			passwordHash := sha512.Sum512(password)
+			slice := passwordHash[:]
+			passBase64 := encode64(slice)
+
+			return username, passBase64
+
 		}
 	}
-
+	return "", ""
 }
 
 // gestiona el modo cliente
@@ -99,7 +106,22 @@ func client() {
 
 	var optMainMenu string = mainMenu()
 	if optMainMenu != "N" {
-		register()
+		username, passHash := register()
+
+		if username != "" && passHash != "" {
+			// Send values for register
+			// Estructura de datos
+			data := url.Values{}
+			data.Set("cmd", "register")
+			data.Set("username", username)
+			data.Set("password", passHash)
+
+			// Send POST values
+			client.PostForm("https://localhost:10443", data) // enviamos por POST
+
+		} else {
+			fmt.Println("Hay errores en tu formulario de registro")
+		}
 	}
 
 	var username string

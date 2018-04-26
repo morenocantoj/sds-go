@@ -131,9 +131,12 @@ func handler(w http.ResponseWriter, req *http.Request) {
 	case "register":
 		username := req.Form.Get("username")
 		password := req.Form.Get("password")
+		fmt.Println("Username Y password %s %s", username, password)
 		if registerUser(username, password) {
 			fmt.Println("Se ha registrado un nuevo usuario " + username)
 			response(w, true, "Registrado correctamente")
+		} else {
+			response(w, false, "Error al registrar el usuario "+username)
 		}
 	default:
 		response(w, false, "Comando inválido")
