@@ -8,6 +8,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+
+	"github.com/howeyc/gopass"
 )
 
 type loginStruct struct {
@@ -62,20 +64,24 @@ func decode64(s string) []byte {
 
 func register() {
 	var username string
-	var password string
-	var password_repeat string
+	var password []byte
+	var password_repeat []byte
 
-	for username == "" || password == "" || password_repeat == "" {
+	for username == "" || encode64(password) == "" || encode64(password_repeat) == "" {
 		fmt.Println("Introduce la cuenta con la que quieres registrarte...")
 		fmt.Scanf("%s\n", &username)
 		fmt.Println("Ahora introduce la contraseña con la que quieres loguearte...")
-		fmt.Scanf("%s\n", &password)
+		password, err := gopass.GetPasswd()
+		chk(err)
 		fmt.Println("Repite otra vez la contraseña...")
-		fmt.Scanf("%s\n", &password_repeat)
+		password_repeat, err := gopass.GetPasswd()
+		chk(err)
 
-		if password != password_repeat {
+		if encode64(password) != encode64(password_repeat) {
 			fmt.Println("¡Las contraseñas no coinciden!")
-			password = ""
+
+		} else {
+			// Send data to server encrypted
 		}
 	}
 
