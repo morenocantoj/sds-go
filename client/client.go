@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -30,12 +31,54 @@ func menu() string {
 	fmt.Println("--- ÆCLOUD MENÚ ---")
 	fmt.Println("1- SUBIR FICHERO")
 	fmt.Println("2- DESCARGAR FICHERO")
+	fmt.Println("3- REGISTRO")
 	fmt.Println("Q- SALIR")
 	fmt.Print("Opción: ")
 	var input string
 	fmt.Scanf("%s\n", &input)
 
 	return input
+}
+
+func mainMenu() string {
+	fmt.Println("¿Es la primera vez que visitas ÆCLOUD?")
+	var input string
+	fmt.Scanf("%s\n", &input)
+
+	return input
+}
+
+// función para codificar de []bytes a string (Base64)
+func encode64(data []byte) string {
+	return base64.StdEncoding.EncodeToString(data) // sólo utiliza caracteres "imprimibles"
+}
+
+// función para decodificar de string a []bytes (Base64)
+func decode64(s string) []byte {
+	b, err := base64.StdEncoding.DecodeString(s) // recupera el formato original
+	chk(err)                                     // comprobamos el error
+	return b                                     // devolvemos los datos originales
+}
+
+func register() {
+	var username string
+	var password string
+	var password_repeat string
+
+	for username == "" || password == "" || password_repeat == "" {
+		fmt.Println("Introduce la cuenta con la que quieres registrarte...")
+		fmt.Scanf("%s\n", &username)
+		fmt.Println("Ahora introduce la contraseña con la que quieres loguearte...")
+		fmt.Scanf("%s\n", &password)
+		fmt.Println("Repite otra vez la contraseña...")
+		fmt.Scanf("%s\n", &password_repeat)
+
+		if password != password_repeat {
+			fmt.Println("¡Las contraseñas no coinciden!")
+			password = ""
+		}
+	}
+
 }
 
 // gestiona el modo cliente
@@ -47,6 +90,11 @@ func client() {
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 	client := &http.Client{Transport: tr}
+
+	var optMainMenu string = mainMenu()
+	if optMainMenu != "N" {
+		register()
+	}
 
 	var username string
 	var password string
@@ -94,7 +142,6 @@ func client() {
 	} else {
 		// Volver atras
 		fmt.Println(loginResponse.Msg)
-
 	}
 }
 
