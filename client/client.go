@@ -1,12 +1,8 @@
 package main
 
 import (
-	"crypto/tls"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"net/http"
 	"net/url"
 )
 
@@ -29,6 +25,7 @@ func main() {
 
 func menu() string {
 	fmt.Println("--- ÆCLOUD MENÚ ---")
+	fmt.Println("0- VER LISTADO DE FICHEROS")
 	fmt.Println("1- SUBIR FICHERO")
 	fmt.Println("2- DESCARGAR FICHERO")
 	fmt.Println("3- REGISTRO")
@@ -86,10 +83,10 @@ func client() {
 
 	/* creamos un cliente especial que no comprueba la validez de los certificados
 	esto es necesario por que usamos certificados autofirmados (para pruebas) */
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	client := &http.Client{Transport: tr}
+	// tr := &http.Transport{
+	// 	TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	// }
+	//client := &http.Client{Transport: tr}
 
 	var optMainMenu string = mainMenu()
 	if optMainMenu != "N" {
@@ -110,17 +107,19 @@ func client() {
 	data.Set("username", username)
 	data.Set("password", password)
 
-	r, err := client.PostForm("https://localhost:10443", data) // enviamos por POST
-	chk(err)
+	//r, err := client.PostForm("https://localhost:10443", data) // enviamos por POST
+	//chk(err)
 	// Solo podemos leer una vez el body
-	b, err := ioutil.ReadAll(r.Body)
+	//b, err := ioutil.ReadAll(r.Body)
 
 	var loginResponse loginStruct
-	err = json.Unmarshal(b, &loginResponse)
+	//err = json.Unmarshal(b, &loginResponse)
 
-	defer r.Body.Close()
+	//defer r.Body.Close()
 
-	fmt.Println(loginResponse)
+	//fmt.Println(loginResponse)
+	// FIXME: borrar
+	loginResponse.Ok = true
 	if loginResponse.Ok {
 		fmt.Println(loginResponse.Msg)
 
@@ -128,11 +127,15 @@ func client() {
 		var optMenu string = menu()
 		for optMenu != "Q" {
 			switch optMenu {
+			case "0":
+				//TODO: Implement list files menu
+				listFiles()
 			case "1":
 				//TODO: Implement upload menu
 				uploadFile()
 			case "2":
 				//TODO: Implement download menu
+				downloadFile()
 			default:
 				fmt.Println("Opción incorrecta!")
 			}
@@ -143,8 +146,4 @@ func client() {
 		// Volver atras
 		fmt.Println(loginResponse.Msg)
 	}
-}
-
-func uploadFile() {
-	fmt.Println("Falta por implementar!!")
 }
