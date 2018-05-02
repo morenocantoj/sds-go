@@ -18,6 +18,11 @@ type loginStruct struct {
 	Msg string
 }
 
+type registerStruct struct {
+	Ok  bool
+	Msg string
+}
+
 // función para comprobar errores (ahorra escritura)
 func chk(e error) {
 	if e != nil {
@@ -117,7 +122,22 @@ func client() {
 			data.Set("password", passHash)
 
 			// Send POST values
-			client.PostForm("https://localhost:10443", data) // enviamos por POST
+			r, err := client.PostForm("https://localhost:10443", data) // enviamos por POST
+			chk(err)
+
+			b, err := ioutil.ReadAll(r.Body)
+
+			var registerResponse registerStruct
+			err = json.Unmarshal(b, &registerResponse)
+			chk(err)
+
+			if registerResponse.Ok {
+				fmt.Println("¡Te has registrado correctamente en el sistema!")
+			} else {
+				fmt.Println("Error al registrarte! Puede que tu nombre de usuario ya esté en uso")
+			}
+
+			defer r.Body.Close()
 
 		} else {
 			fmt.Println("Hay errores en tu formulario de registro")
@@ -126,6 +146,7 @@ func client() {
 
 	var username string
 	var password string
+	fmt.Println("-- Inicio de sesión --")
 	fmt.Printf("Introduce usuario: ")
 	fmt.Scanf("%s\n", &username)
 	fmt.Println()

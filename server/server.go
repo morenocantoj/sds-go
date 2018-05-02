@@ -14,6 +14,7 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // función para comprobar errores (ahorra escritura)
@@ -102,12 +103,29 @@ func registerUser(username string, password string) bool {
 	chk(err)
 
 	// Check if email is already in database
-	stmtOut, err := db.Prepare("SELECT * FROM user WHERE number = ?")
-	chk(err)
 
-	defer stmtOut.Close()
+	var existingMail sql.NullString
 
-	// Hash to password + bcrypt to hash
+	row := db.QueryRow("SELECT email FROM users WHERE email = ?", username)
+	err = row.Scan(&existingMail)
+
+	if existingMail.Valid {
+		// User exists
+		return false
+	} else {
+		// User doesnt exists
+		passwordSalted, err := bcrypt.GenerateFromPassword(decode64(password), bcrypt.DefaultCost)
+		chk(err)
+		result, err := db.Exec("INSERT INTO users (email, password) VALUES (?, ?)", username, encode64(passwordSalted))
+		chk(err)
+		idResult, err := result.LastInsertId()
+
+		if idResult > 0 {
+			return true
+		} else {
+			return false
+		}
+	}
 
 	defer db.Close()
 	return true
@@ -121,6 +139,7 @@ func handler(w http.ResponseWriter, req *http.Request) {
 	case "hola": // ** registro
 		response(w, true, "Hola "+req.Form.Get("mensaje"))
 		fmt.Println("Arancha me ha hecho una petición desde su pobre ordenador")
+
 	case "login": // Check login
 		username := req.Form.Get("username")
 		password := req.Form.Get("password")
@@ -128,16 +147,19 @@ func handler(w http.ResponseWriter, req *http.Request) {
 			fmt.Println("Usuario " + username + " autenticado en el sistema")
 			response(w, true, "Hola de nuevo "+username)
 		}
+
 	case "register":
 		username := req.Form.Get("username")
 		password := req.Form.Get("password")
-		fmt.Println("Username Y password %s %s", username, password)
+
 		if registerUser(username, password) {
 			fmt.Println("Se ha registrado un nuevo usuario " + username)
 			response(w, true, "Registrado correctamente")
 		} else {
+			fmt.Println("Error al registrar el usuario " + username)
 			response(w, false, "Error al registrar el usuario "+username)
 		}
+
 	default:
 		response(w, false, "Comando inválido")
 	}
