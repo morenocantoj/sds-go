@@ -14,6 +14,7 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/goinggo/tracelog"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -199,6 +200,10 @@ func handler(w http.ResponseWriter, req *http.Request) {
 
 func main() {
 	fmt.Println("ÆCloud en GO")
+	tracelog.StartFile(1, "log", 30)
+	tracelog.Trace("main", "main", "Hola buenas")
+	tracelog.Info("main", "main", "Queriamos unos kebabs")
+	tracelog.Warning("main", "main", "EL FAKING WARNING")
 	fmt.Println("Un ejemplo de server/cliente mediante TLS/HTTP en Go.")
 	s := "Introduce srv para funcionalidad de servidor y cli para funcionalidad de cliente"
 
@@ -213,4 +218,6 @@ func main() {
 	} else {
 		fmt.Println(s)
 	}
+
+	tracelog.Stop()
 }
