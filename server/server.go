@@ -14,12 +14,29 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/goinggo/tracelog"
 	"golang.org/x/crypto/bcrypt"
 )
+
+func loginfo(title string, msg string, function string, level string, err error) {
+	switch level {
+	case "trace":
+		tracelog.Trace(title, function, msg)
+	case "info":
+		tracelog.Info(title, function, msg)
+	case "warning":
+		tracelog.Warning(title, function, msg)
+	case "error":
+		tracelog.Error(err, title, function)
+	default:
+		tracelog.Info("main", "main", msg)
+	}
+}
 
 // función para comprobar errores (ahorra escritura)
 func chk(e error) {
 	if e != nil {
+		loginfo("error", "error", "chk", "error", e)
 		panic(e)
 	}
 }
@@ -91,11 +108,13 @@ func decode64(s string) []byte {
 func checkLogin(username string, password string) bool {
 	db, err := sql.Open("mysql", "sds:sds@/sds")
 	chk(err)
+	loginfo("checkLogin", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
 
 	var existingPassword sql.NullString
 	row := db.QueryRow("SELECT password FROM users WHERE email = ?", username)
 	err = row.Scan(&existingPassword)
 	chk(err)
+	loginfo("checkLogin", "Comprobado si existe usuario y extracción de contraseña", "db.QueryRow", "trace", nil)
 
 	if existingPassword.Valid {
 		// User exists
@@ -107,6 +126,7 @@ func checkLogin(username string, password string) bool {
 
 		// Compare passwords
 		err = bcrypt.CompareHashAndPassword(decode64(passwordString), passwordByte)
+		loginfo("checkLogin", "Comparación de password en BBDD y login", "db.QueryRow", "trace", nil)
 
 		if err == nil {
 			// Password matches!
@@ -132,13 +152,15 @@ func registerUser(username string, password string) bool {
 	// Open database
 	db, err := sql.Open("mysql", "sds:sds@/sds")
 	chk(err)
+	loginfo("registerUser", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
 
 	// Check if email is already in database
-
 	var existingMail sql.NullString
 
 	row := db.QueryRow("SELECT email FROM users WHERE email = ?", username)
 	err = row.Scan(&existingMail)
+
+	loginfo("registerUser", "Comprobar si existe cuenta registrada", "db.QueryRow", "trace", nil)
 
 	if existingMail.Valid {
 		// User exists
@@ -150,7 +172,7 @@ func registerUser(username string, password string) bool {
 		result, err := db.Exec("INSERT INTO users (email, password) VALUES (?, ?)", username, encode64(passwordSalted))
 		chk(err)
 		idResult, err := result.LastInsertId()
-
+		loginfo("registerUser", "Insertado de cuenta y password en base de datos", "db.Exec", "trace", nil)
 		if idResult > 0 {
 			return true
 		} else {
@@ -167,16 +189,16 @@ func handler(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "text/plain") // cabecera estándar
 
 	switch req.Form.Get("cmd") { // comprobamos comando desde el cliente
-	case "hola": // ** registro
-		response(w, true, "Hola "+req.Form.Get("mensaje"))
-		fmt.Println("Arancha me ha hecho una petición desde su pobre ordenador")
 
 	case "login": // Check login
 		username := req.Form.Get("username")
 		password := req.Form.Get("password")
+		loginfo("login", "Usuario "+username+" se intenta loguear en el sistema", "handler", "info", nil)
 		if checkLogin(username, password) {
-			fmt.Println("Usuario " + username + " autenticado en el sistema")
+			loginfo("login", "Usuario "+username+" autenticado en el sistema", "handler", "info", nil)
 			response(w, true, "Hola de nuevo "+username)
+		} else {
+			loginfo("login", "Usuario "+username+" ha fallado al autenticarse en el sistema", "handler", "warning", nil)
 		}
 
 	case "register":
@@ -184,14 +206,15 @@ func handler(w http.ResponseWriter, req *http.Request) {
 		password := req.Form.Get("password")
 
 		if registerUser(username, password) {
-			fmt.Println("Se ha registrado un nuevo usuario " + username)
+			loginfo("register", "Se ha registrado un nuevo usuario "+username, "handler", "info", nil)
 			response(w, true, "Registrado correctamente")
 		} else {
-			fmt.Println("Error al registrar el usuario " + username)
+			loginfo("register", "Error al registrar el usuario "+username, "handler", "warning", nil)
 			response(w, false, "Error al registrar el usuario "+username)
 		}
 
 	default:
+		loginfo("main", "Acción no válida", "handler", "warning", nil)
 		response(w, false, "Comando inválido")
 	}
 
@@ -199,13 +222,14 @@ func handler(w http.ResponseWriter, req *http.Request) {
 
 func main() {
 	fmt.Println("ÆCloud en GO")
+	tracelog.StartFile(1, "log", 30)
 	fmt.Println("Un ejemplo de server/cliente mediante TLS/HTTP en Go.")
 	s := "Introduce srv para funcionalidad de servidor y cli para funcionalidad de cliente"
 
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "srv":
-			fmt.Println("Entrando en modo servidor...")
+			loginfo("main", "Entrando en modo servidor...", "main", "info", nil)
 			server()
 		default:
 			fmt.Println("Parámetro '", os.Args[1], "' desconocido. ", s)
@@ -213,4 +237,6 @@ func main() {
 	} else {
 		fmt.Println(s)
 	}
+
+	tracelog.Stop()
 }
