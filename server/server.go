@@ -89,8 +89,39 @@ func decode64(s string) []byte {
 * @param password
  */
 func checkLogin(username string, password string) bool {
-	// TODO: Check with database
-	return true
+	db, err := sql.Open("mysql", "sds:sds@/sds")
+	chk(err)
+
+	var existingPassword sql.NullString
+	row := db.QueryRow("SELECT password FROM users WHERE email = ?", username)
+	err = row.Scan(&existingPassword)
+	chk(err)
+
+	if existingPassword.Valid {
+		// User exists
+		var passwordString = existingPassword.String
+
+		// Get bcrypt password from client
+		passwordByte := decode64(password)
+		chk(err)
+
+		// Compare passwords
+		err = bcrypt.CompareHashAndPassword(decode64(passwordString), passwordByte)
+
+		if err == nil {
+			// Password matches!
+			return true
+		} else {
+			return false
+		}
+
+	} else {
+		// No user
+		return false
+	}
+
+	defer db.Close()
+	return false
 }
 
 func registerUser(username string, password string) bool {

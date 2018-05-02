@@ -145,19 +145,25 @@ func client() {
 	}
 
 	var username string
-	var password string
+	var password []byte
 	fmt.Println("-- Inicio de sesión --")
 	fmt.Printf("Introduce usuario: ")
 	fmt.Scanf("%s\n", &username)
 	fmt.Println()
 	fmt.Printf("Introduce contraseña: ")
-	fmt.Scanf("%s\n", &password)
+	password, err := gopass.GetPasswd()
+	chk(err)
+
+	// Send data to server encrypted
+	passwordHash := sha512.Sum512(password)
+	slice := passwordHash[:]
+	passBase64 := encode64(slice)
 
 	// Estructura de datos
 	data := url.Values{}
 	data.Set("cmd", "login")
 	data.Set("username", username)
-	data.Set("password", password)
+	data.Set("password", passBase64)
 
 	r, err := client.PostForm("https://localhost:10443", data) // enviamos por POST
 	chk(err)
@@ -169,9 +175,8 @@ func client() {
 
 	defer r.Body.Close()
 
-	fmt.Println(loginResponse)
 	if loginResponse.Ok {
-		fmt.Println(loginResponse.Msg)
+		fmt.Println("Hola de nuevo " + username)
 
 		// User menu
 		var optMenu string = menu()
@@ -190,7 +195,7 @@ func client() {
 
 	} else {
 		// Volver atras
-		fmt.Println(loginResponse.Msg)
+		fmt.Println("Error! usuario o contraseña incorrectos")
 	}
 }
 
