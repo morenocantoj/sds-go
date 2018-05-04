@@ -13,10 +13,37 @@ import (
 	"os/signal"
 	"time"
 
+	jwt "github.com/dgrijalva/jwt-go"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/goinggo/tracelog"
+	"github.com/mitchellh/mapstructure"
 	"golang.org/x/crypto/bcrypt"
 )
+
+type JwtToken struct {
+	Token string `json:"token"`
+}
+
+// respuesta del servidor
+type resp struct {
+	Ok  bool   // true -> correcto, false -> error
+	Msg string // mensaje adicional
+}
+
+type respLogin struct {
+	Ok    bool   // true -> correcto, false -> error
+	Msg   string // mensaje adicional
+	Token string
+}
+
+type user struct {
+	username string
+	password string
+}
+
+type Exception struct {
+	Message string `json:"message"`
+}
 
 func loginfo(title string, msg string, function string, level string, err error) {
 	switch level {
@@ -41,23 +68,19 @@ func chk(e error) {
 	}
 }
 
-// respuesta del servidor
-type resp struct {
-	Ok  bool   // true -> correcto, false -> error
-	Msg string // mensaje adicional
-}
-
-type user struct {
-	Username string
-	Password string
-}
-
 // función para escribir una respuesta del servidor
 func response(w io.Writer, ok bool, msg string) {
 	r := resp{Ok: ok, Msg: msg}    // formateamos respuesta
 	rJSON, err := json.Marshal(&r) // codificamos en JSON
 	chk(err)                       // comprobamos error
 	w.Write(rJSON)                 // escribimos el JSON resultante
+}
+
+func responseLogin(w io.Writer, ok bool, msg string, token string) {
+	r := respLogin{Ok: ok, Msg: msg, Token: token} // formateamos respuesta
+	rJSON, err := json.Marshal(&r)                 // codificamos en JSON
+	chk(err)                                       // comprobamos error
+	w.Write(rJSON)                                 // escribimos el JSON resultante
 }
 
 // gestiona el modo servidor
@@ -98,6 +121,42 @@ func decode64(s string) []byte {
 	b, err := base64.StdEncoding.DecodeString(s) // recupera el formato original
 	chk(err)                                     // comprobamos el error
 	return b                                     // devolvemos los datos originales
+}
+
+/**
+* Creates JWT token
+* @param w
+* @param username
+* @param password
+ */
+func CreateTokenEndpoint(username string, password string) string {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"username": username,
+		"password": password,
+	})
+	tokenString, err := token.SignedString([]byte("secret"))
+	chk(err)
+
+	return tokenString
+}
+
+/**
+* Protected endpoint for verify JWT
+ */
+func ProtectedEndpoint(w http.ResponseWriter, tokenString string) {
+	token, _ := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("There was an error")
+		}
+		return []byte("secret"), nil
+	})
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		var user user
+		mapstructure.Decode(claims, &user)
+		json.NewEncoder(w).Encode(user)
+	} else {
+		json.NewEncoder(w).Encode(Exception{Message: "Invalid authorization token"})
+	}
 }
 
 /**
@@ -194,11 +253,14 @@ func handler(w http.ResponseWriter, req *http.Request) {
 		username := req.Form.Get("username")
 		password := req.Form.Get("password")
 		loginfo("login", "Usuario "+username+" se intenta loguear en el sistema", "handler", "info", nil)
+
 		if checkLogin(username, password) {
 			loginfo("login", "Usuario "+username+" autenticado en el sistema", "handler", "info", nil)
-			response(w, true, "Hola de nuevo "+username)
+			token := CreateTokenEndpoint(username, password)
+			responseLogin(w, true, "Usuario "+username+" autenticado en el sistema", token)
 		} else {
 			loginfo("login", "Usuario "+username+" ha fallado al autenticarse en el sistema", "handler", "warning", nil)
+			responseLogin(w, false, "Usuario "+username+" autenticado en el sistema", "")
 		}
 
 	case "register":

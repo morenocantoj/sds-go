@@ -13,14 +13,25 @@ import (
 	"github.com/howeyc/gopass"
 )
 
+var tokenSesion = ""
+
+func changeToken(newToken string) {
+	tokenSesion = newToken
+}
+
 type loginStruct struct {
-	Ok  bool
-	Msg string
+	Ok    bool
+	Msg   string
+	Token string
 }
 
 type registerStruct struct {
 	Ok  bool
 	Msg string
+}
+
+type JwtToken struct {
+	Token string `json:"token"`
 }
 
 // función para comprobar errores (ahorra escritura)
@@ -173,10 +184,11 @@ func client() {
 	var loginResponse loginStruct
 	err = json.Unmarshal(b, &loginResponse)
 
-	defer r.Body.Close()
-
 	if loginResponse.Ok {
 		fmt.Println("Hola de nuevo " + username)
+
+		// Cambiamos el token de sesion
+		changeToken(loginResponse.Token)
 
 		// User menu
 		var optMenu string = menu()
@@ -197,6 +209,8 @@ func client() {
 		// Volver atras
 		fmt.Println("Error! usuario o contraseña incorrectos")
 	}
+
+	defer r.Body.Close()
 }
 
 func uploadFile() {
