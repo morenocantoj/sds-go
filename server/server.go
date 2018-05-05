@@ -243,6 +243,34 @@ func registerUser(username string, password string) bool {
 	return true
 }
 
+func login(w http.ResponseWriter, req *http.Request) {
+	username := req.Form.Get("username")
+	password := req.Form.Get("password")
+	loginfo("login", "Usuario "+username+" se intenta loguear en el sistema", "handler", "info", nil)
+
+	if checkLogin(username, password) {
+		loginfo("login", "Usuario "+username+" autenticado en el sistema", "handler", "info", nil)
+		token := CreateTokenEndpoint(username, password)
+		responseLogin(w, true, "Usuario "+username+" autenticado en el sistema", token)
+	} else {
+		loginfo("login", "Usuario "+username+" ha fallado al autenticarse en el sistema", "handler", "warning", nil)
+		responseLogin(w, false, "Usuario "+username+" autenticado en el sistema", "")
+	}
+}
+
+func register(w http.ResponseWriter, req *http.Request) {
+	username := req.Form.Get("username")
+	password := req.Form.Get("password")
+
+	if registerUser(username, password) {
+		loginfo("register", "Se ha registrado un nuevo usuario "+username, "handler", "info", nil)
+		response(w, true, "Registrado correctamente")
+	} else {
+		loginfo("register", "Error al registrar el usuario "+username, "handler", "warning", nil)
+		response(w, false, "Error al registrar el usuario "+username)
+	}
+}
+
 func handler(w http.ResponseWriter, req *http.Request) {
 	req.ParseForm()                              // es necesario parsear el formulario
 	w.Header().Set("Content-Type", "text/plain") // cabecera estándar
@@ -250,31 +278,9 @@ func handler(w http.ResponseWriter, req *http.Request) {
 	switch req.Form.Get("cmd") { // comprobamos comando desde el cliente
 
 	case "login": // Check login
-		username := req.Form.Get("username")
-		password := req.Form.Get("password")
-		loginfo("login", "Usuario "+username+" se intenta loguear en el sistema", "handler", "info", nil)
-
-		if checkLogin(username, password) {
-			loginfo("login", "Usuario "+username+" autenticado en el sistema", "handler", "info", nil)
-			token := CreateTokenEndpoint(username, password)
-			responseLogin(w, true, "Usuario "+username+" autenticado en el sistema", token)
-		} else {
-			loginfo("login", "Usuario "+username+" ha fallado al autenticarse en el sistema", "handler", "warning", nil)
-			responseLogin(w, false, "Usuario "+username+" autenticado en el sistema", "")
-		}
-
+		login(w, req)
 	case "register":
-		username := req.Form.Get("username")
-		password := req.Form.Get("password")
-
-		if registerUser(username, password) {
-			loginfo("register", "Se ha registrado un nuevo usuario "+username, "handler", "info", nil)
-			response(w, true, "Registrado correctamente")
-		} else {
-			loginfo("register", "Error al registrar el usuario "+username, "handler", "warning", nil)
-			response(w, false, "Error al registrar el usuario "+username)
-		}
-
+		register(w, req)
 	default:
 		loginfo("main", "Acción no válida", "handler", "warning", nil)
 		response(w, false, "Comando inválido")
