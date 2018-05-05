@@ -271,6 +271,30 @@ func register(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+func validateToken(tokenString string) bool {
+	loginfo("Validar token", "Validar token de usuario", "validateToken", "info", nil)
+
+	token, error := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			loginfo("Validar token", "Error al validar el token", "validateToken", "error", nil)
+			return nil, fmt.Errorf("There was an error")
+		}
+		return []byte("secret"), nil
+	})
+	if error != nil {
+		loginfo("Validar token", "Error al validar el token", "validateToken", "error", error)
+		return false
+	}
+	if token.Valid {
+		loginfo("Validar token", "Token válido!", "validateToken", "info", nil)
+		return true
+	} else {
+		loginfo("Validar token", "Token no válido", "validateToken", "warning", nil)
+		return false
+	}
+	return false
+}
+
 func handler(w http.ResponseWriter, req *http.Request) {
 	req.ParseForm()                              // es necesario parsear el formulario
 	w.Header().Set("Content-Type", "text/plain") // cabecera estándar

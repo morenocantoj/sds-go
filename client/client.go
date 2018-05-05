@@ -50,7 +50,7 @@ func menu() string {
 	fmt.Println("--- ÆCLOUD MENÚ ---")
 	fmt.Println("1- SUBIR FICHERO")
 	fmt.Println("2- DESCARGAR FICHERO")
-	fmt.Println("3- REGISTRO")
+	fmt.Println("3- PROBAR EL TOKEN")
 	fmt.Println("Q- SALIR")
 	fmt.Print("Opción: ")
 	var input string
