@@ -206,29 +206,29 @@ func client() {
 		err = json.Unmarshal(b, &loginResponse)
 
 		if loginResponse.Ok {
-			fmt.Println("factor de doble autenticación bien!")
-		}
-
-		// User menu
-		var optMenu string = menu()
-		for optMenu != "Q" {
-			switch optMenu {
-			case "1":
-				//TODO: Implement upload menu
-				uploadFile()
-			case "2":
-				//TODO: Implement download menu
-			case "3":
-				// Check token
-				data := url.Values{}
-				data.Set("cmd", "tokencheck")
-				data.Set("token", tokenSesion)
-				_, err := client.PostForm("https://localhost:10443", data) // enviamos por POST
-				chk(err)
-			default:
-				fmt.Println("Opción incorrecta!")
+			// User menu
+			var optMenu string = menu()
+			for optMenu != "Q" {
+				switch optMenu {
+				case "1":
+					//TODO: Implement upload menu
+					uploadFile()
+				case "2":
+					//TODO: Implement download menu
+				case "3":
+					// Check token
+					data := url.Values{}
+					data.Set("cmd", "tokencheck")
+					data.Set("token", tokenSesion)
+					_, err := client.PostForm("https://localhost:10443", data) // enviamos por POST
+					chk(err)
+				default:
+					fmt.Println("Opción incorrecta!")
+				}
+				optMenu = menu()
 			}
-			optMenu = menu()
+		} else {
+			fmt.Println("Error! token 2FA no válido")
 		}
 
 	} else {

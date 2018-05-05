@@ -335,13 +335,6 @@ func handler(w http.ResponseWriter, req *http.Request) {
 		register(w, req)
 	case "doublelogin": // Check 2FA auth
 		doubleLogin(w, req)
-	case "tokencheck":
-		token := req.Form.Get("token")
-		if validateToken(token) {
-			fmt.Println("TOKEN VÁLIDO")
-		} else {
-			fmt.Println("TOKEN NO VÁLIDO")
-		}
 	default:
 		loginfo("main", "Acción no válida", "handler", "warning", nil)
 		response(w, false, "Comando inválido")
