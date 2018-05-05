@@ -13,10 +13,41 @@ import (
 	"os/signal"
 	"time"
 
+	jwt "github.com/dgrijalva/jwt-go"
+	"github.com/dgryski/dgoogauth"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/goinggo/tracelog"
 	"golang.org/x/crypto/bcrypt"
 )
+
+type JwtToken struct {
+	Token string `json:"token"`
+}
+
+// respuesta del servidor
+type resp struct {
+	Ok  bool   // true -> correcto, false -> error
+	Msg string // mensaje adicional
+}
+
+type respLogin struct {
+	Ok    bool   // true -> correcto, false -> error
+	Msg   string // mensaje adicional
+	Token string
+}
+
+type user struct {
+	username string
+	password string
+}
+
+type Exception struct {
+	Message string `json:"message"`
+}
+
+type OtpToken struct {
+	Token string
+}
 
 func loginfo(title string, msg string, function string, level string, err error) {
 	switch level {
@@ -41,23 +72,19 @@ func chk(e error) {
 	}
 }
 
-// respuesta del servidor
-type resp struct {
-	Ok  bool   // true -> correcto, false -> error
-	Msg string // mensaje adicional
-}
-
-type user struct {
-	Username string
-	Password string
-}
-
 // función para escribir una respuesta del servidor
 func response(w io.Writer, ok bool, msg string) {
 	r := resp{Ok: ok, Msg: msg}    // formateamos respuesta
 	rJSON, err := json.Marshal(&r) // codificamos en JSON
 	chk(err)                       // comprobamos error
 	w.Write(rJSON)                 // escribimos el JSON resultante
+}
+
+func responseLogin(w io.Writer, ok bool, msg string, token string) {
+	r := respLogin{Ok: ok, Msg: msg, Token: token} // formateamos respuesta
+	rJSON, err := json.Marshal(&r)                 // codificamos en JSON
+	chk(err)                                       // comprobamos error
+	w.Write(rJSON)                                 // escribimos el JSON resultante
 }
 
 // gestiona el modo servidor
@@ -184,6 +211,118 @@ func registerUser(username string, password string) bool {
 	return true
 }
 
+func login(w http.ResponseWriter, req *http.Request) {
+	username := req.Form.Get("username")
+	password := req.Form.Get("password")
+	loginfo("login", "Usuario "+username+" se intenta loguear en el sistema", "handler", "info", nil)
+
+	if checkLogin(username, password) {
+		loginfo("login", "Usuario "+username+" autenticado en el sistema", "handler", "info", nil)
+		token := CreateTokenEndpoint(username, password)
+		responseLogin(w, true, "Usuario "+username+" autenticado en el sistema", token)
+	} else {
+		loginfo("login", "Usuario "+username+" ha fallado al autenticarse en el sistema", "handler", "warning", nil)
+		responseLogin(w, false, "Usuario "+username+" autenticado en el sistema", "")
+	}
+}
+
+func doubleLogin(w http.ResponseWriter, req *http.Request) {
+	otpToken := req.Form.Get("otpToken")
+	tokenString := req.Form.Get("token")
+	tokenResult, correct := VerifyOtpEndpoint(tokenString, otpToken)
+	fmt.Println(tokenResult)
+	fmt.Println(correct)
+	responseLogin(w, correct, "Autenticación en el sistema (2FA)", tokenResult)
+}
+
+func register(w http.ResponseWriter, req *http.Request) {
+	username := req.Form.Get("username")
+	password := req.Form.Get("password")
+
+	if registerUser(username, password) {
+		loginfo("register", "Se ha registrado un nuevo usuario "+username, "handler", "info", nil)
+		response(w, true, "Registrado correctamente")
+	} else {
+		loginfo("register", "Error al registrar el usuario "+username, "handler", "warning", nil)
+		response(w, false, "Error al registrar el usuario "+username)
+	}
+}
+
+/**
+* Creates JWT token
+* @param w
+* @param username
+* @param password
+ */
+func CreateTokenEndpoint(username string, password string) string {
+	token := make(map[string]interface{})
+	token["username"] = username
+	token["password"] = password
+	token["authorized"] = false
+
+	tokenString, err := SignJwt(token, "secret")
+	chk(err)
+
+	return tokenString
+}
+
+func SignJwt(claims jwt.MapClaims, secret string) (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(secret))
+}
+
+func validateToken(tokenString string) bool {
+	loginfo("Validar token", "Validar token de usuario", "validateToken", "info", nil)
+
+	decodedToken, err := VerifyJwt(tokenString, "secret")
+	if err != nil {
+		return false
+	}
+	if decodedToken["authorized"] == false {
+		return false
+	} else {
+		return true
+	}
+}
+
+func VerifyJwt(token string, secret string) (map[string]interface{}, error) {
+	jwToken, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("There was an error")
+		}
+		return []byte(secret), nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if !jwToken.Valid {
+		return nil, fmt.Errorf("Invalid authorization token")
+	}
+	return jwToken.Claims.(jwt.MapClaims), nil
+}
+
+func VerifyOtpEndpoint(tokenString string, otpToken string) (string, bool) {
+	// TODO: Quit secret mocked!
+	secret := "2MXGP5X3FVUEK6W4UB2PPODSP2GKYWUT"
+
+	decodedToken, err := VerifyJwt(tokenString, "secret")
+	if err != nil {
+		return tokenString, false
+	}
+	otpc := &dgoogauth.OTPConfig{
+		Secret:      secret,
+		WindowSize:  3,
+		HotpCounter: 0,
+	}
+
+	decodedToken["authorized"], _ = otpc.Authenticate(otpToken)
+	if decodedToken["authorized"] == false {
+		return tokenString, false
+	}
+	jwToken, _ := SignJwt(decodedToken, "secret")
+	return jwToken, true
+}
+
 func handler(w http.ResponseWriter, req *http.Request) {
 	req.ParseForm()                              // es necesario parsear el formulario
 	w.Header().Set("Content-Type", "text/plain") // cabecera estándar
@@ -191,28 +330,11 @@ func handler(w http.ResponseWriter, req *http.Request) {
 	switch req.Form.Get("cmd") { // comprobamos comando desde el cliente
 
 	case "login": // Check login
-		username := req.Form.Get("username")
-		password := req.Form.Get("password")
-		loginfo("login", "Usuario "+username+" se intenta loguear en el sistema", "handler", "info", nil)
-		if checkLogin(username, password) {
-			loginfo("login", "Usuario "+username+" autenticado en el sistema", "handler", "info", nil)
-			response(w, true, "Hola de nuevo "+username)
-		} else {
-			loginfo("login", "Usuario "+username+" ha fallado al autenticarse en el sistema", "handler", "warning", nil)
-		}
-
+		login(w, req)
 	case "register":
-		username := req.Form.Get("username")
-		password := req.Form.Get("password")
-
-		if registerUser(username, password) {
-			loginfo("register", "Se ha registrado un nuevo usuario "+username, "handler", "info", nil)
-			response(w, true, "Registrado correctamente")
-		} else {
-			loginfo("register", "Error al registrar el usuario "+username, "handler", "warning", nil)
-			response(w, false, "Error al registrar el usuario "+username)
-		}
-
+		register(w, req)
+	case "doublelogin": // Check 2FA auth
+		doubleLogin(w, req)
 	default:
 		loginfo("main", "Acción no válida", "handler", "warning", nil)
 		response(w, false, "Comando inválido")
