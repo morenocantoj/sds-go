@@ -186,9 +186,28 @@ func client() {
 
 	if loginResponse.Ok {
 		fmt.Println("Hola de nuevo " + username)
-
 		// Cambiamos el token de sesion
 		changeToken(loginResponse.Token)
+
+		fmt.Printf("Debes aplicar el valor de doble autenticación: ")
+		var googleauth string
+		fmt.Scanf("%s\n", &googleauth)
+		fmt.Println(googleauth)
+
+		data := url.Values{}
+		data.Set("cmd", "doublelogin")
+		data.Set("token", tokenSesion)
+		data.Set("otpToken", googleauth)
+
+		r, err := client.PostForm("https://localhost:10443", data) // enviamos por POST
+		chk(err)
+		// Solo podemos leer una vez el body
+		b, err := ioutil.ReadAll(r.Body)
+		err = json.Unmarshal(b, &loginResponse)
+
+		if loginResponse.Ok {
+			fmt.Println("factor de doble autenticación bien!")
+		}
 
 		// User menu
 		var optMenu string = menu()
@@ -199,6 +218,13 @@ func client() {
 				uploadFile()
 			case "2":
 				//TODO: Implement download menu
+			case "3":
+				// Check token
+				data := url.Values{}
+				data.Set("cmd", "tokencheck")
+				data.Set("token", tokenSesion)
+				_, err := client.PostForm("https://localhost:10443", data) // enviamos por POST
+				chk(err)
 			default:
 				fmt.Println("Opción incorrecta!")
 			}

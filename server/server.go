@@ -14,9 +14,9 @@ import (
 	"time"
 
 	jwt "github.com/dgrijalva/jwt-go"
+	"github.com/dgryski/dgoogauth"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/goinggo/tracelog"
-	"github.com/mitchellh/mapstructure"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -43,6 +43,10 @@ type user struct {
 
 type Exception struct {
 	Message string `json:"message"`
+}
+
+type OtpToken struct {
+	Token string
 }
 
 func loginfo(title string, msg string, function string, level string, err error) {
@@ -121,42 +125,6 @@ func decode64(s string) []byte {
 	b, err := base64.StdEncoding.DecodeString(s) // recupera el formato original
 	chk(err)                                     // comprobamos el error
 	return b                                     // devolvemos los datos originales
-}
-
-/**
-* Creates JWT token
-* @param w
-* @param username
-* @param password
- */
-func CreateTokenEndpoint(username string, password string) string {
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"username": username,
-		"password": password,
-	})
-	tokenString, err := token.SignedString([]byte("secret"))
-	chk(err)
-
-	return tokenString
-}
-
-/**
-* Protected endpoint for verify JWT
- */
-func ProtectedEndpoint(w http.ResponseWriter, tokenString string) {
-	token, _ := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("There was an error")
-		}
-		return []byte("secret"), nil
-	})
-	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		var user user
-		mapstructure.Decode(claims, &user)
-		json.NewEncoder(w).Encode(user)
-	} else {
-		json.NewEncoder(w).Encode(Exception{Message: "Invalid authorization token"})
-	}
 }
 
 /**
@@ -258,6 +226,15 @@ func login(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+func doubleLogin(w http.ResponseWriter, req *http.Request) {
+	otpToken := req.Form.Get("otpToken")
+	tokenString := req.Form.Get("token")
+	tokenResult, correct := VerifyOtpEndpoint(tokenString, otpToken)
+	fmt.Println(tokenResult)
+	fmt.Println(correct)
+	responseLogin(w, correct, "Autenticación en el sistema (2FA)", tokenResult)
+}
+
 func register(w http.ResponseWriter, req *http.Request) {
 	username := req.Form.Get("username")
 	password := req.Form.Get("password")
@@ -271,28 +248,79 @@ func register(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+/**
+* Creates JWT token
+* @param w
+* @param username
+* @param password
+ */
+func CreateTokenEndpoint(username string, password string) string {
+	token := make(map[string]interface{})
+	token["username"] = username
+	token["password"] = password
+	token["authorized"] = false
+
+	tokenString, err := SignJwt(token, "secret")
+	chk(err)
+
+	return tokenString
+}
+
+func SignJwt(claims jwt.MapClaims, secret string) (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(secret))
+}
+
 func validateToken(tokenString string) bool {
 	loginfo("Validar token", "Validar token de usuario", "validateToken", "info", nil)
 
-	token, error := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+	decodedToken, err := VerifyJwt(tokenString, "secret")
+	if err != nil {
+		return false
+	}
+	if decodedToken["authorized"] == false {
+		return false
+	} else {
+		return true
+	}
+}
+
+func VerifyJwt(token string, secret string) (map[string]interface{}, error) {
+	jwToken, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			loginfo("Validar token", "Error al validar el token", "validateToken", "error", nil)
 			return nil, fmt.Errorf("There was an error")
 		}
-		return []byte("secret"), nil
+		return []byte(secret), nil
 	})
-	if error != nil {
-		loginfo("Validar token", "Error al validar el token", "validateToken", "error", error)
-		return false
+	if err != nil {
+		return nil, err
 	}
-	if token.Valid {
-		loginfo("Validar token", "Token válido!", "validateToken", "info", nil)
-		return true
-	} else {
-		loginfo("Validar token", "Token no válido", "validateToken", "warning", nil)
-		return false
+	if !jwToken.Valid {
+		return nil, fmt.Errorf("Invalid authorization token")
 	}
-	return false
+	return jwToken.Claims.(jwt.MapClaims), nil
+}
+
+func VerifyOtpEndpoint(tokenString string, otpToken string) (string, bool) {
+	// TODO: Quit secret mocked!
+	secret := "2MXGP5X3FVUEK6W4UB2PPODSP2GKYWUT"
+
+	decodedToken, err := VerifyJwt(tokenString, "secret")
+	if err != nil {
+		return tokenString, false
+	}
+	otpc := &dgoogauth.OTPConfig{
+		Secret:      secret,
+		WindowSize:  3,
+		HotpCounter: 0,
+	}
+
+	decodedToken["authorized"], _ = otpc.Authenticate(otpToken)
+	if decodedToken["authorized"] == false {
+		return tokenString, false
+	}
+	jwToken, _ := SignJwt(decodedToken, "secret")
+	return jwToken, true
 }
 
 func handler(w http.ResponseWriter, req *http.Request) {
@@ -305,6 +333,15 @@ func handler(w http.ResponseWriter, req *http.Request) {
 		login(w, req)
 	case "register":
 		register(w, req)
+	case "doublelogin": // Check 2FA auth
+		doubleLogin(w, req)
+	case "tokencheck":
+		token := req.Form.Get("token")
+		if validateToken(token) {
+			fmt.Println("TOKEN VÁLIDO")
+		} else {
+			fmt.Println("TOKEN NO VÁLIDO")
+		}
 	default:
 		loginfo("main", "Acción no válida", "handler", "warning", nil)
 		response(w, false, "Comando inválido")
