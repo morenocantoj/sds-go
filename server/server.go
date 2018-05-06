@@ -50,6 +50,7 @@ func server() {
 
 	mux := http.NewServeMux()
 	mux.Handle("/", http.HandlerFunc(handler))
+	mux.Handle("/files/upload", http.HandlerFunc(handlerFileUpload))
 
 	srv := &http.Server{Addr: ":10443", Handler: mux}
 
@@ -138,7 +139,6 @@ func handler(w http.ResponseWriter, req *http.Request) {
 	default:
 		response(w, false, "Comando inválido")
 	}
-
 }
 
 func main() {

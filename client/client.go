@@ -1,8 +1,10 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/base64"
 	"fmt"
+	"net/http"
 	"net/url"
 )
 
@@ -81,12 +83,14 @@ func register() {
 // gestiona el modo cliente
 func client() {
 
+	// --- FIXME: Refactor to init function
 	/* creamos un cliente especial que no comprueba la validez de los certificados
 	esto es necesario por que usamos certificados autofirmados (para pruebas) */
-	// tr := &http.Transport{
-	// 	TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	// }
-	//client := &http.Client{Transport: tr}
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{Transport: tr}
+	// ----
 
 	var optMainMenu string = mainMenu()
 	if optMainMenu != "N" {
@@ -132,7 +136,7 @@ func client() {
 				listFiles()
 			case "1":
 				//TODO: Implement upload menu
-				uploadFile()
+				uploadFile(client)
 			case "2":
 				//TODO: Implement download menu
 				downloadFile()
