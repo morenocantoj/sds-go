@@ -343,6 +343,9 @@ func handler(w http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
+
+	tracelog.StartFile(1, "log", 30)
+
 	fmt.Println("\n############################################################")
 	fmt.Println("###################### ÆCloud Server #######################")
 	fmt.Println("############################################################\n")
@@ -350,4 +353,6 @@ func main() {
 	fmt.Println("\nServer listening on port 10443 ...\n")
 
 	server()
+
+	tracelog.Stop()
 }

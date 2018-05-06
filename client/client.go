@@ -183,13 +183,13 @@ func client() {
 	data.Set("username", username)
 	data.Set("password", passBase64)
 
-	//r, err := client.PostForm("https://localhost:10443", data) // enviamos por POST
-	//chk(err)
+	r, err := client.PostForm("https://localhost:10443", data) // enviamos por POST
+	chk(err)
 	// Solo podemos leer una vez el body
-	//b, err := ioutil.ReadAll(r.Body)
+	b, err := ioutil.ReadAll(r.Body)
 
 	var loginResponse loginStruct
-	//err = json.Unmarshal(b, &loginResponse)
+	err = json.Unmarshal(b, &loginResponse)
 
 	if loginResponse.Ok {
 		fmt.Println("Hola de nuevo " + username)
