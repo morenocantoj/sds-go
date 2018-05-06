@@ -21,7 +21,11 @@ func chk(e error) {
 }
 
 func main() {
-	fmt.Println("Un ÆCloud cliente mediante TLS/HTTP en Go.")
+	fmt.Println("\n############################################################")
+	fmt.Println("###################### ÆCloud Client #######################")
+	fmt.Println("############################################################\n")
+	fmt.Println("   -- Un cliente mediante comunicación TLS/HTTP en Go --\n")
+
 	client()
 }
 
@@ -40,7 +44,7 @@ func menu() string {
 }
 
 func mainMenu() string {
-	fmt.Println("¿Es la primera vez que visitas ÆCLOUD?")
+	fmt.Print("¿Es la primera vez que visitas ÆCLOUD? (S/N) \n-> ")
 	var input string
 	fmt.Scanf("%s\n", &input)
 
