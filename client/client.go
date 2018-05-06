@@ -42,12 +42,17 @@ func chk(e error) {
 }
 
 func main() {
-	fmt.Println("Un ÆCloud cliente mediante TLS/HTTP en Go.")
+	fmt.Println("\n############################################################")
+	fmt.Println("###################### ÆCloud Client #######################")
+	fmt.Println("############################################################\n")
+	fmt.Println("   -- Un cliente mediante comunicación TLS/HTTP en Go --\n")
+
 	client()
 }
 
 func menu() string {
 	fmt.Println("--- ÆCLOUD MENÚ ---")
+	fmt.Println("0- VER LISTADO DE FICHEROS")
 	fmt.Println("1- SUBIR FICHERO")
 	fmt.Println("2- DESCARGAR FICHERO")
 	fmt.Println("3- PROBAR EL TOKEN")
@@ -60,7 +65,7 @@ func menu() string {
 }
 
 func mainMenu() string {
-	fmt.Println("¿Es la primera vez que visitas ÆCLOUD?")
+	fmt.Print("¿Es la primera vez que visitas ÆCLOUD? (S/N) \n-> ")
 	var input string
 	fmt.Scanf("%s\n", &input)
 
@@ -113,12 +118,14 @@ func register() (string, string) {
 // gestiona el modo cliente
 func client() {
 
+	// --- FIXME: Refactor to init function
 	/* creamos un cliente especial que no comprueba la validez de los certificados
 	esto es necesario por que usamos certificados autofirmados (para pruebas) */
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 	client := &http.Client{Transport: tr}
+	// ----
 
 	var optMainMenu string = mainMenu()
 	if optMainMenu != "N" {
@@ -176,13 +183,13 @@ func client() {
 	data.Set("username", username)
 	data.Set("password", passBase64)
 
-	r, err := client.PostForm("https://localhost:10443", data) // enviamos por POST
-	chk(err)
+	//r, err := client.PostForm("https://localhost:10443", data) // enviamos por POST
+	//chk(err)
 	// Solo podemos leer una vez el body
-	b, err := ioutil.ReadAll(r.Body)
+	//b, err := ioutil.ReadAll(r.Body)
 
 	var loginResponse loginStruct
-	err = json.Unmarshal(b, &loginResponse)
+	//err = json.Unmarshal(b, &loginResponse)
 
 	if loginResponse.Ok {
 		fmt.Println("Hola de nuevo " + username)
@@ -203,6 +210,7 @@ func client() {
 		chk(err)
 		// Solo podemos leer una vez el body
 		b, err := ioutil.ReadAll(r.Body)
+		defer r.Body.Close()
 		err = json.Unmarshal(b, &loginResponse)
 
 		if loginResponse.Ok {
@@ -210,11 +218,15 @@ func client() {
 			var optMenu string = menu()
 			for optMenu != "Q" {
 				switch optMenu {
+				case "0":
+					//TODO: Implement list files menu
+					listFiles()
 				case "1":
 					//TODO: Implement upload menu
-					uploadFile()
+					uploadFile(client)
 				case "2":
 					//TODO: Implement download menu
+					downloadFile()
 				case "3":
 					// Check token
 					data := url.Values{}
@@ -235,10 +247,4 @@ func client() {
 		// Volver atras
 		fmt.Println("Error! usuario o contraseña incorrectos")
 	}
-
-	defer r.Body.Close()
-}
-
-func uploadFile() {
-	fmt.Println("Falta por implementar!!")
 }

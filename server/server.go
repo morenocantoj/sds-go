@@ -95,6 +95,7 @@ func server() {
 
 	mux := http.NewServeMux()
 	mux.Handle("/", http.HandlerFunc(handler))
+	mux.Handle("/files/upload", http.HandlerFunc(handlerFileUpload))
 
 	srv := &http.Server{Addr: ":10443", Handler: mux}
 
@@ -339,26 +340,14 @@ func handler(w http.ResponseWriter, req *http.Request) {
 		loginfo("main", "Acción no válida", "handler", "warning", nil)
 		response(w, false, "Comando inválido")
 	}
-
 }
 
 func main() {
-	fmt.Println("ÆCloud en GO")
-	tracelog.StartFile(1, "log", 30)
-	fmt.Println("Un ejemplo de server/cliente mediante TLS/HTTP en Go.")
-	s := "Introduce srv para funcionalidad de servidor y cli para funcionalidad de cliente"
+	fmt.Println("\n############################################################")
+	fmt.Println("###################### ÆCloud Server #######################")
+	fmt.Println("############################################################\n")
+	fmt.Println("   -- Un server mediante comunicación TLS/HTTP en Go  --")
+	fmt.Println("\nServer listening on port 10443 ...\n")
 
-	if len(os.Args) > 1 {
-		switch os.Args[1] {
-		case "srv":
-			loginfo("main", "Entrando en modo servidor...", "main", "info", nil)
-			server()
-		default:
-			fmt.Println("Parámetro '", os.Args[1], "' desconocido. ", s)
-		}
-	} else {
-		fmt.Println(s)
-	}
-
-	tracelog.Stop()
+	server()
 }
