@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -9,6 +11,8 @@ import (
 	"mime/multipart"
 	"net/http"
 	"strings"
+
+	uuid "github.com/satori/go.uuid"
 )
 
 func handlerFileUpload(w http.ResponseWriter, req *http.Request) {
@@ -56,12 +60,95 @@ func handlerFileUpload(w http.ResponseWriter, req *http.Request) {
 
 		}
 
-		isSaved, err := saveFile(data)
-		if err != nil || isSaved == false {
+		// Save user file register on DB
+		userFileId, err := checkFileExistsForUser(1, data.name)
+		if err != nil {
 			log.Fatal(err)
 			response(w, false, "[server] Se ha producido un error al subir el archivo")
 		}
-		fmt.Printf("Archivo \"%v\" subido correctamente\n", data.name)
-		response(w, true, "[server] Archivo subido")
+		if userFileId == -1 {
+			var newUserFile user_file
+			newUserFile.userId = 1
+			newUserFile.filename = data.name
+			newUserFile.extension = data.extension
+
+			insertedUserFileId, err := insertUserFile(newUserFile)
+			if err != nil {
+				log.Fatal(err)
+				response(w, false, "[server] Se ha producido un error al subir el archivo")
+			}
+			userFileId = insertedUserFileId
+		}
+
+		// Save file
+		var newFile file
+
+		uid, err := uuid.NewV4()
+		if err != nil {
+			log.Fatal(err)
+			response(w, false, "[server] Se ha producido un error al subir el archivo")
+		}
+		newFile.uuid = uid.String()
+
+		checksumInBytes := md5.Sum(data.content)
+		newFile.checksum = hex.EncodeToString(checksumInBytes[:])
+
+		fileId, err := checkFileExistsInDatabase(newFile.checksum)
+		if err != nil {
+			log.Fatal(err)
+			response(w, false, "[server] Se ha producido un error al subir el archivo")
+		}
+		if fileId == -1 {
+			// Save file on DB Storage
+			saved_uuid, err := saveFile(data, newFile.uuid)
+			if err != nil || saved_uuid == "" {
+				log.Fatal(err)
+				response(w, false, "[server] Se ha producido un error al subir el archivo")
+			}
+			fmt.Printf("Archivo \"%v\" subido correctamente\n", data.name)
+
+			// Save file on DB
+			insertedFileId, err := insertFileInDatabase(newFile)
+			if err != nil {
+				log.Fatal(err)
+				response(w, false, "[server] Se ha producido un error al subir el archivo")
+			}
+			fileId = insertedFileId
+		}
+
+		// Save file version on DB
+		lastFileVersion, err := checkUserFileLastVersion(userFileId)
+		if err != nil {
+			log.Fatal(err)
+			response(w, false, "[server] Se ha producido un error al subir el archivo")
+		}
+
+		hasUpdates := true
+		var newFileVersion file_version
+		newFileVersion.user_file_id = userFileId
+		newFileVersion.file_id = fileId
+		if lastFileVersion == -1 {
+			newFileVersion.version_num = 1
+		} else {
+			newFileVersion.version_num = lastFileVersion + 1
+			hasUpdates, err = checkLastFileVersionHasUpdates(lastFileVersion, newFile.checksum)
+			if err != nil {
+				log.Fatal(err)
+				response(w, false, "[server] Se ha producido un error al subir el archivo")
+			}
+		}
+
+		if hasUpdates == true {
+			_, err = insertFileVersion(newFileVersion)
+			if err != nil {
+				log.Fatal(err)
+				response(w, false, "[server] Se ha producido un error al subir el archivo")
+			}
+
+			response(w, true, "[server] Archivo subido")
+		} else {
+			response(w, true, "[server] El archivo ya existe")
+		}
+
 	}
 }
