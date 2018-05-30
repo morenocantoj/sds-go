@@ -21,7 +21,13 @@ func changeToken(newToken string) {
 
 type loginStruct struct {
 	Ok    bool
+	TwoFa bool
 	Msg   string
+	Token string
+}
+
+type twoFactorStruct struct {
+	Ok    bool
 	Token string
 }
 
@@ -55,7 +61,6 @@ func menu() string {
 	fmt.Println("0- VER LISTADO DE FICHEROS")
 	fmt.Println("1- SUBIR FICHERO")
 	fmt.Println("2- DESCARGAR FICHERO")
-	fmt.Println("3- PROBAR EL TOKEN")
 	fmt.Println("Q- SALIR")
 	fmt.Print("Opción: ")
 	var input string
@@ -115,6 +120,65 @@ func register() (string, string) {
 	return "", ""
 }
 
+func enableTwoAuth(client *http.Client, username string) bool {
+	fmt.Printf("¿Deseas aplicar autenticación en dos pasos? (S/N)")
+	var enable string
+	fmt.Scanf("%s\n", &enable)
+
+	if enable == "S" || enable == "s" {
+		// Enable 2FA
+		data := url.Values{}
+		data.Set("cmd", "enable2fa")
+		data.Set("username", username)
+
+		r, err := client.PostForm("https://localhost:10443", data)
+		chk(err)
+		b, err := ioutil.ReadAll(r.Body)
+
+		// Get enabled token
+		var twoFactorResponse twoFactorStruct
+		err = json.Unmarshal(b, &twoFactorResponse)
+		chk(err)
+
+		if twoFactorResponse.Ok {
+			fmt.Printf("Aquí tienes tu código de registro para la doble autenticación %s \n", twoFactorResponse.Token)
+			fmt.Println("Este código es único e instransferible. ¡No lo pierdas!")
+			return true
+		} else {
+			fmt.Println("¡Ha habido un error generando el código de registro de doble autenticación!")
+		}
+	}
+	return false
+}
+
+func loginTwoAuth(client *http.Client, tokenSesion string) bool {
+	// Two factor login needed
+	fmt.Printf("Debes aplicar el valor de doble autenticación: ")
+	var googleauth string
+	fmt.Scanf("%s\n", &googleauth)
+
+	data := url.Values{}
+	data.Set("cmd", "doublelogin")
+	data.Set("token", tokenSesion)
+	data.Set("otpToken", googleauth)
+
+	r, err := client.PostForm("https://localhost:10443", data) // enviamos por POST
+	chk(err)
+	// Solo podemos leer una vez el body
+	b, err := ioutil.ReadAll(r.Body)
+	defer r.Body.Close()
+
+	var loginResponse loginStruct
+	err = json.Unmarshal(b, &loginResponse)
+
+	if loginResponse.Ok {
+		changeToken(loginResponse.Token)
+		return true
+	}
+
+	return false
+}
+
 // gestiona el modo cliente
 func client() {
 
@@ -151,6 +215,7 @@ func client() {
 
 			if registerResponse.Ok {
 				fmt.Println("¡Te has registrado correctamente en el sistema!")
+				enableTwoAuth(client, username)
 			} else {
 				fmt.Println("Error al registrarte! Puede que tu nombre de usuario ya esté en uso")
 			}
@@ -191,29 +256,25 @@ func client() {
 	var loginResponse loginStruct
 	err = json.Unmarshal(b, &loginResponse)
 
-	if loginResponse.Ok {
+	var login bool
+	login = loginResponse.Ok
+
+	if login {
 		fmt.Println("Hola de nuevo " + username)
 		// Cambiamos el token de sesion
 		changeToken(loginResponse.Token)
 
-		fmt.Printf("Debes aplicar el valor de doble autenticación: ")
-		var googleauth string
-		fmt.Scanf("%s\n", &googleauth)
-		fmt.Println(googleauth)
+		if loginResponse.TwoFa {
+			login = loginTwoAuth(client, tokenSesion)
 
-		data := url.Values{}
-		data.Set("cmd", "doublelogin")
-		data.Set("token", tokenSesion)
-		data.Set("otpToken", googleauth)
+		} else {
+			// Try to enable 2FA
+			if enableTwoAuth(client, username) {
+				login = loginTwoAuth(client, tokenSesion)
+			}
+		}
 
-		r, err := client.PostForm("https://localhost:10443", data) // enviamos por POST
-		chk(err)
-		// Solo podemos leer una vez el body
-		b, err := ioutil.ReadAll(r.Body)
-		defer r.Body.Close()
-		err = json.Unmarshal(b, &loginResponse)
-
-		if loginResponse.Ok {
+		if login {
 			// User menu
 			var optMenu string = menu()
 			for optMenu != "Q" {
@@ -227,13 +288,6 @@ func client() {
 				case "2":
 					//TODO: Implement download menu
 					downloadFile()
-				case "3":
-					// Check token
-					data := url.Values{}
-					data.Set("cmd", "tokencheck")
-					data.Set("token", tokenSesion)
-					_, err := client.PostForm("https://localhost:10443", data) // enviamos por POST
-					chk(err)
 				default:
 					fmt.Println("Opción incorrecta!")
 				}
