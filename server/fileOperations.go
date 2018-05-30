@@ -1,20 +1,33 @@
 package main
 
 import (
+	"crypto/md5"
+	"fmt"
 	"io/ioutil"
 	"log"
+
+	uuid "github.com/satori/go.uuid"
 )
 
 type fileStruct struct {
-	name    string
-	content []byte
+	name      string
+	extension string
+	content   []byte
 }
 
 func saveFile(fileData fileStruct) (bool, error) {
+	uid, err := uuid.NewV4()
+	if err != nil {
+		log.Fatal(err)
+		return false, err
+	}
+	filename := uid.String()
 
-	var dst = "./files/" + fileData.name
+	// TODO: Check if files folder exists (if not create it)
+	var dst = "./files/" + filename + fileData.extension //fileData.name
 
-	err := ioutil.WriteFile(dst, fileData.content, 0666)
+	fmt.Printf("%x", md5.Sum(fileData.content))
+	err = ioutil.WriteFile(dst, fileData.content, 0666)
 	if err != nil {
 		log.Fatal(err)
 		return false, err

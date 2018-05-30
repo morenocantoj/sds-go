@@ -11,9 +11,10 @@ import (
 )
 
 type fileStruct struct {
-	name     string
-	filepath string
-	content  []byte
+	name      string
+	extension string
+	filepath  string
+	content   []byte
 }
 
 func readFile(inputFile string) (fileStruct, error) {
@@ -37,9 +38,11 @@ func readFile(inputFile string) (fileStruct, error) {
 	}
 
 	var filename = filepath.Base(fileAbsPath)
+	var extension = filepath.Ext(filename)
 
 	// Object file
 	data.name = filename
+	data.extension = extension
 	data.filepath = fileAbsPath
 	data.content = file
 	return data, err

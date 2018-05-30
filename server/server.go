@@ -20,6 +20,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const DATA_SOURCE_NAME = "sds:sds@tcp(127.0.0.1:3307)/sds"
+
 type JwtToken struct {
 	Token string `json:"token"`
 }
@@ -134,7 +136,7 @@ func decode64(s string) []byte {
 * @param password
  */
 func checkLogin(username string, password string) bool {
-	db, err := sql.Open("mysql", "sds:sds@/sds")
+	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
 	chk(err)
 	loginfo("checkLogin", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
 
@@ -178,7 +180,7 @@ func registerUser(username string, password string) bool {
 	}
 
 	// Open database
-	db, err := sql.Open("mysql", "sds:sds@/sds")
+	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
 	chk(err)
 	loginfo("registerUser", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
 
