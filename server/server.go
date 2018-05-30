@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"time"
 
@@ -322,6 +323,29 @@ func register(w http.ResponseWriter, req *http.Request) {
 		loginfo("register", "Error al registrar el usuario "+username, "handler", "warning", nil)
 		response(w, false, "Error al registrar el usuario "+username)
 	}
+}
+
+func getUserIdFromToken(token string) int {
+	decodedToken, err := VerifyJwt(token, jwtSecret)
+	username := decodedToken["username"]
+
+	// Open database
+	db, err := sql.Open("mysql", "sds:sds@/sds")
+	chk(err)
+
+	// Check if email is already in database
+	var userIdString []byte
+
+	row := db.QueryRow("SELECT id FROM users WHERE email = ?", username)
+	err = row.Scan(&userIdString)
+	chk(err)
+
+	defer db.Close()
+
+	userId, err := strconv.Atoi(string(userIdString))
+	chk(err)
+
+	return userId
 }
 
 /**
