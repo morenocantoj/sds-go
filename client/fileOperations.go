@@ -71,5 +71,6 @@ func newfileUploadRequest(uri string, params map[string]string, paramName, path 
 
 	req, err := http.NewRequest("POST", uri, body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+tokenSesion)
 	return req, err
 }

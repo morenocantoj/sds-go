@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
 	jwt "github.com/dgrijalva/jwt-go"
@@ -104,6 +105,40 @@ func response2FA(w io.Writer, ok bool, token string) {
 	w.Write(rJSON)
 }
 
+func GetBearerToken(header string) (string, error) {
+	if header == "" {
+		return "", fmt.Errorf("An authorization header is required")
+	}
+	token := strings.Split(header, " ")
+	if len(token) != 2 {
+		return "", fmt.Errorf("Malformed bearer token")
+	}
+	return token[1], nil
+}
+
+func validateMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		bearerToken, err := GetBearerToken(req.Header.Get("Authorization"))
+		if err != nil {
+			json.NewEncoder(w).Encode(err)
+			return
+		}
+		fmt.Println("TOKEN " + bearerToken)
+		decodedToken, err := VerifyJwt(bearerToken, jwtSecret)
+		fmt.Println(decodedToken)
+		if err != nil {
+			json.NewEncoder(w).Encode(err)
+			return
+		}
+		if decodedToken["authorized"] == true {
+			fmt.Println("ke pasa ke vols")
+			next(w, req)
+		} else {
+			json.NewEncoder(w).Encode("Token no válido! Inicia sesión de nuevo!")
+		}
+	})
+}
+
 // gestiona el modo servidor
 func server() {
 	// suscripción SIGINT
@@ -112,7 +147,7 @@ func server() {
 
 	mux := http.NewServeMux()
 	mux.Handle("/", http.HandlerFunc(handler))
-	mux.Handle("/files/upload", http.HandlerFunc(handlerFileUpload))
+	mux.HandleFunc("/files/upload", validateMiddleware(handlerFileUpload))
 
 	srv := &http.Server{Addr: ":10443", Handler: mux}
 
@@ -304,7 +339,7 @@ func CreateTokenEndpoint(username string, password string) string {
 	// Check if user has 2FA enabled
 	if !checkTwoFaEnabled(username) {
 		// We have only one step verification
-		token["autorized"] = true
+		token["authorized"] = true
 	}
 
 	tokenString, err := SignJwt(token, jwtSecret)
