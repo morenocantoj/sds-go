@@ -22,6 +22,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+var jwtSecret = ""
+
 type JwtToken struct {
 	Token string `json:"token"`
 }
@@ -299,7 +301,13 @@ func CreateTokenEndpoint(username string, password string) string {
 	token["password"] = password
 	token["authorized"] = false
 
-	tokenString, err := SignJwt(token, "secret")
+	// Check if user has 2FA enabled
+	if !checkTwoFaEnabled(username) {
+		// We have only one step verification
+		token["autorized"] = true
+	}
+
+	tokenString, err := SignJwt(token, jwtSecret)
 	chk(err)
 
 	return tokenString
@@ -313,7 +321,7 @@ func SignJwt(claims jwt.MapClaims, secret string) (string, error) {
 func validateToken(tokenString string) bool {
 	loginfo("Validar token", "Validar token de usuario", "validateToken", "info", nil)
 
-	decodedToken, err := VerifyJwt(tokenString, "secret")
+	decodedToken, err := VerifyJwt(tokenString, jwtSecret)
 	if err != nil {
 		return false
 	}
@@ -341,7 +349,7 @@ func VerifyJwt(token string, secret string) (map[string]interface{}, error) {
 }
 
 func VerifyOtpEndpoint(tokenString string, otpToken string) (string, bool) {
-	decodedToken, err := VerifyJwt(tokenString, "secret")
+	decodedToken, err := VerifyJwt(tokenString, jwtSecret)
 	username := decodedToken["username"]
 
 	// Open database
@@ -370,7 +378,7 @@ func VerifyOtpEndpoint(tokenString string, otpToken string) (string, bool) {
 	if decodedToken["authorized"] == false {
 		return tokenString, false
 	}
-	jwToken, _ := SignJwt(decodedToken, "secret")
+	jwToken, _ := SignJwt(decodedToken, jwtSecret)
 	return jwToken, true
 }
 
@@ -428,6 +436,9 @@ func handler(w http.ResponseWriter, req *http.Request) {
 func main() {
 
 	tracelog.StartFile(1, "log", 30)
+
+	// Generate a JWT secret each time we restart server
+	jwtSecret = generateSecretEndpoint()
 
 	fmt.Println("\n############################################################")
 	fmt.Println("###################### ÆCloud Server #######################")
