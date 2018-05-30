@@ -1,0 +1,5 @@
+CREATE USER 'sds'@'localhost' IDENTIFIED BY 'sds';
+GRANT ALL PRIVILEGES ON *.* TO 'sds'@'localhost';
+FLUSH PRIVILEGES;
+
+CREATE DATABASE sds CHARACTER SET utf8 COLLATE utf8_bin;
