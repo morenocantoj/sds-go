@@ -25,6 +25,11 @@ type loginStruct struct {
 	Token string
 }
 
+type twoFactorStruct struct {
+	Ok    bool
+	Token string
+}
+
 type registerStruct struct {
 	Ok  bool
 	Msg string
@@ -115,6 +120,35 @@ func register() (string, string) {
 	return "", ""
 }
 
+func enableTwoAuth(client *http.Client, username string) {
+	fmt.Printf("¿Deseas aplicar autenticación en dos pasos? (S/N)")
+	var enable string
+	fmt.Scanf("%s\n", &enable)
+
+	if enable == "S" || enable == "s" {
+		// Enable 2FA
+		data := url.Values{}
+		data.Set("cmd", "enable2fa")
+		data.Set("username", username)
+
+		r, err := client.PostForm("https://localhost:10443", data)
+		chk(err)
+		b, err := ioutil.ReadAll(r.Body)
+
+		// Get enabled token
+		var twoFactorResponse twoFactorStruct
+		err = json.Unmarshal(b, &twoFactorResponse)
+		chk(err)
+
+		if twoFactorResponse.Ok {
+			fmt.Printf("Aquí tienes tu código de registro para la doble autenticación %s \n", twoFactorResponse.Token)
+			fmt.Println("Este código es único e instransferible. ¡No lo pierdas!")
+		} else {
+			fmt.Println("¡Ha habido un error generando el código de registro de doble autenticación!")
+		}
+	}
+}
+
 // gestiona el modo cliente
 func client() {
 
@@ -151,6 +185,7 @@ func client() {
 
 			if registerResponse.Ok {
 				fmt.Println("¡Te has registrado correctamente en el sistema!")
+				enableTwoAuth(client, username)
 			} else {
 				fmt.Println("Error al registrarte! Puede que tu nombre de usuario ya esté en uso")
 			}

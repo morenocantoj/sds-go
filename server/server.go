@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/base32"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -49,6 +51,11 @@ type OtpToken struct {
 	Token string
 }
 
+type twoFactorStruct struct {
+	Ok    bool
+	Token string
+}
+
 func loginfo(title string, msg string, function string, level string, err error) {
 	switch level {
 	case "trace":
@@ -85,6 +92,13 @@ func responseLogin(w io.Writer, ok bool, msg string, token string) {
 	rJSON, err := json.Marshal(&r)                 // codificamos en JSON
 	chk(err)                                       // comprobamos error
 	w.Write(rJSON)                                 // escribimos el JSON resultante
+}
+
+func response2FA(w io.Writer, ok bool, token string) {
+	r := twoFactorStruct{Ok: ok, Token: token}
+	rJSON, err := json.Marshal(&r)
+	chk(err)
+	w.Write(rJSON)
 }
 
 // gestiona el modo servidor
@@ -303,15 +317,27 @@ func VerifyJwt(token string, secret string) (map[string]interface{}, error) {
 }
 
 func VerifyOtpEndpoint(tokenString string, otpToken string) (string, bool) {
-	// TODO: Quit secret mocked!
-	secret := "2MXGP5X3FVUEK6W4UB2PPODSP2GKYWUT"
-
 	decodedToken, err := VerifyJwt(tokenString, "secret")
+	username := decodedToken["username"]
+
+	// Open database
+	db, err := sql.Open("mysql", "sds:sds@/sds")
+	chk(err)
+
+	// Check if email is already in database
+	var twoFactorToken []byte
+
+	row := db.QueryRow("SELECT token_2fa FROM users WHERE email = ?", username)
+	err = row.Scan(&twoFactorToken)
+	chk(err)
+
+	defer db.Close()
+
 	if err != nil {
 		return tokenString, false
 	}
 	otpc := &dgoogauth.OTPConfig{
-		Secret:      secret,
+		Secret:      string(twoFactorToken),
 		WindowSize:  3,
 		HotpCounter: 0,
 	}
@@ -322,6 +348,37 @@ func VerifyOtpEndpoint(tokenString string, otpToken string) (string, bool) {
 	}
 	jwToken, _ := SignJwt(decodedToken, "secret")
 	return jwToken, true
+}
+
+// Generates a 80 bit base32 encoded string
+func generateSecretEndpoint() string {
+	random := make([]byte, 10)
+	rand.Read(random)
+	secret := base32.StdEncoding.EncodeToString(random)
+	return secret
+}
+
+func enableTwoFactor(w http.ResponseWriter, req *http.Request) {
+	// Open database
+	db, err := sql.Open("mysql", "sds:sds@/sds")
+	chk(err)
+	loginfo("enableTwoFactor", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
+	tokenValue := generateSecretEndpoint()
+	username := req.Form.Get("username")
+
+	loginfo("enableTwoFactor", "Usuario "+username+" intenta habilitar 2FA en su cuenta", "enableTwoFactor", "info", nil)
+
+	_, err = db.Exec("UPDATE users SET token_2fa = '" + tokenValue + "' WHERE email = '" + username + "'")
+
+	if err != nil {
+		// Send false values
+		response2FA(w, false, "")
+	} else {
+		// Send new secret token for 2fa
+		response2FA(w, true, tokenValue)
+	}
+
+	defer db.Close()
 }
 
 func handler(w http.ResponseWriter, req *http.Request) {
@@ -336,6 +393,8 @@ func handler(w http.ResponseWriter, req *http.Request) {
 		register(w, req)
 	case "doublelogin": // Check 2FA auth
 		doubleLogin(w, req)
+	case "enable2fa":
+		enableTwoFactor(w, req)
 	default:
 		loginfo("main", "Acción no válida", "handler", "warning", nil)
 		response(w, false, "Comando inválido")
