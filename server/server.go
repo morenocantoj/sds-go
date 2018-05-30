@@ -34,6 +34,7 @@ type resp struct {
 
 type respLogin struct {
 	Ok    bool   // true -> correcto, false -> error
+	TwoFa bool   // Two Factor enabled
 	Msg   string // mensaje adicional
 	Token string
 }
@@ -87,11 +88,11 @@ func response(w io.Writer, ok bool, msg string) {
 	w.Write(rJSON)                 // escribimos el JSON resultante
 }
 
-func responseLogin(w io.Writer, ok bool, msg string, token string) {
-	r := respLogin{Ok: ok, Msg: msg, Token: token} // formateamos respuesta
-	rJSON, err := json.Marshal(&r)                 // codificamos en JSON
-	chk(err)                                       // comprobamos error
-	w.Write(rJSON)                                 // escribimos el JSON resultante
+func responseLogin(w io.Writer, ok bool, twoFa bool, msg string, token string) {
+	r := respLogin{Ok: ok, TwoFa: twoFa, Msg: msg, Token: token} // formateamos respuesta
+	rJSON, err := json.Marshal(&r)                               // codificamos en JSON
+	chk(err)                                                     // comprobamos error
+	w.Write(rJSON)                                               // escribimos el JSON resultante
 }
 
 func response2FA(w io.Writer, ok bool, token string) {
@@ -226,6 +227,27 @@ func registerUser(username string, password string) bool {
 	return true
 }
 
+func checkTwoFaEnabled(username string) bool {
+	// Open database
+	db, err := sql.Open("mysql", "sds:sds@/sds")
+	chk(err)
+	loginfo("checkTwoFaEnabled", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
+
+	// Check if token is already in the user
+	var existingToken sql.NullString
+
+	row := db.QueryRow("SELECT token_2fa FROM users WHERE email = ?", username)
+	err = row.Scan(&existingToken)
+
+	defer db.Close()
+
+	if existingToken.Valid {
+		return true
+	}
+	return false
+
+}
+
 func login(w http.ResponseWriter, req *http.Request) {
 	username := req.Form.Get("username")
 	password := req.Form.Get("password")
@@ -234,10 +256,12 @@ func login(w http.ResponseWriter, req *http.Request) {
 	if checkLogin(username, password) {
 		loginfo("login", "Usuario "+username+" autenticado en el sistema", "handler", "info", nil)
 		token := CreateTokenEndpoint(username, password)
-		responseLogin(w, true, "Usuario "+username+" autenticado en el sistema", token)
+		twoFa := checkTwoFaEnabled(username)
+
+		responseLogin(w, true, twoFa, "Usuario "+username+" autenticado en el sistema", token)
 	} else {
 		loginfo("login", "Usuario "+username+" ha fallado al autenticarse en el sistema", "handler", "warning", nil)
-		responseLogin(w, false, "Usuario "+username+" autenticado en el sistema", "")
+		responseLogin(w, false, false, "Usuario "+username+" autenticado en el sistema", "")
 	}
 }
 
@@ -247,7 +271,7 @@ func doubleLogin(w http.ResponseWriter, req *http.Request) {
 	tokenResult, correct := VerifyOtpEndpoint(tokenString, otpToken)
 	fmt.Println(tokenResult)
 	fmt.Println(correct)
-	responseLogin(w, correct, "Autenticación en el sistema (2FA)", tokenResult)
+	responseLogin(w, correct, true, "Autenticación en el sistema (2FA)", tokenResult)
 }
 
 func register(w http.ResponseWriter, req *http.Request) {
