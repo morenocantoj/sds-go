@@ -126,15 +126,13 @@ func validateMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			json.NewEncoder(w).Encode(err)
 			return
 		}
-		fmt.Println("TOKEN " + bearerToken)
+
 		decodedToken, err := VerifyJwt(bearerToken, jwtSecret)
-		fmt.Println(decodedToken)
 		if err != nil {
 			json.NewEncoder(w).Encode(err)
 			return
 		}
 		if decodedToken["authorized"] == true {
-			fmt.Println("ke pasa ke vols")
 			next(w, req)
 		} else {
 			json.NewEncoder(w).Encode("Token no válido! Inicia sesión de nuevo!")
@@ -269,7 +267,7 @@ func registerUser(username string, password string) bool {
 
 func checkTwoFaEnabled(username string) bool {
 	// Open database
-	db, err := sql.Open("mysql", "sds:sds@/sds")
+	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
 	chk(err)
 	loginfo("checkTwoFaEnabled", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
 
@@ -332,7 +330,7 @@ func getUserIdFromToken(token string) int {
 	username := decodedToken["username"]
 
 	// Open database
-	db, err := sql.Open("mysql", "sds:sds@/sds")
+	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
 	chk(err)
 
 	// Check if email is already in database
@@ -414,7 +412,7 @@ func VerifyOtpEndpoint(tokenString string, otpToken string) (string, bool) {
 	username := decodedToken["username"]
 
 	// Open database
-	db, err := sql.Open("mysql", "sds:sds@/sds")
+	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
 	chk(err)
 
 	// Check if email is already in database
@@ -453,7 +451,7 @@ func generateSecretEndpoint() string {
 
 func enableTwoFactor(w http.ResponseWriter, req *http.Request) {
 	// Open database
-	db, err := sql.Open("mysql", "sds:sds@/sds")
+	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
 	chk(err)
 	loginfo("enableTwoFactor", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
 	tokenValue := generateSecretEndpoint()

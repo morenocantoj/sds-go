@@ -60,6 +60,14 @@ func handlerFileUpload(w http.ResponseWriter, req *http.Request) {
 
 		}
 
+		// Get actual user ID
+		bearerToken, err := GetBearerToken(req.Header.Get("Authorization"))
+		if err != nil {
+			log.Fatal(err)
+			response(w, false, "[server] Se ha producido un error al subir el archivo")
+		}
+		userId := getUserIdFromToken(bearerToken)
+
 		// Save user file register on DB
 		userFileId, err := checkFileExistsForUser(1, data.name)
 		if err != nil {
@@ -68,7 +76,7 @@ func handlerFileUpload(w http.ResponseWriter, req *http.Request) {
 		}
 		if userFileId == -1 {
 			var newUserFile user_file
-			newUserFile.userId = 1
+			newUserFile.userId = userId
 			newUserFile.filename = data.name
 			newUserFile.extension = data.extension
 
