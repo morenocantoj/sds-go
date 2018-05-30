@@ -35,8 +35,9 @@ func uploadFile(client *http.Client) {
 
 	// Realizamos la petición
 	extraParams := map[string]string{
-		"name": fileData.name,
-		"user": "n",
+		"name":      fileData.name,
+		"extension": fileData.extension,
+		"user":      "n",
 	}
 	request, err := newfileUploadRequest("https://localhost:10443/files/upload", extraParams, "file", fileData.filepath)
 	if err != nil {

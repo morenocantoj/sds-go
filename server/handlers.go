@@ -48,6 +48,8 @@ func handlerFileUpload(w http.ResponseWriter, req *http.Request) {
 				}
 			case "name":
 				data.name = string(slurp)
+			case "extension":
+				data.extension = string(slurp)
 			case "user":
 			default:
 			}
