@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"database/sql"
@@ -9,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -26,7 +28,10 @@ import (
 
 var jwtSecret = ""
 
-const DATA_SOURCE_NAME = "sds:sds@tcp(127.0.0.1:3307)/sds"
+const DROPBOX_SECRET = "n9ug1wz16s552yc"                                                 // Secret key
+const DROPBOX_TOKEN = "u-OwWgvnlFEAAAAAAAAI9xFBLVcj7VKkUnHVJIbNvcf7d8DJnOrjJP_wRa_bJdK5" // Auth token
+const DROPBOX_ID = "lwv5hhnokvemo6k"                                                     // App key
+const DATA_SOURCE_NAME = "sds:sds@tcp(127.0.0.1:3306)/sds"
 
 type JwtToken struct {
 	Token string `json:"token"`
@@ -43,6 +48,11 @@ type respLogin struct {
 	TwoFa bool   // Two Factor enabled
 	Msg   string // mensaje adicional
 	Token string
+}
+
+type respCreateDropboxFolder struct {
+	Created bool
+	Msg     string
 }
 
 type user struct {
@@ -108,6 +118,13 @@ func response2FA(w io.Writer, ok bool, token string) {
 	w.Write(rJSON)
 }
 
+func responseCreateDropboxFolder(w io.Writer, created bool, msg string) {
+	r := respCreateDropboxFolder{Created: created, Msg: msg}
+	rJSON, err := json.Marshal(&r)
+	chk(err)
+	w.Write(rJSON)
+}
+
 func GetBearerToken(header string) (string, error) {
 	if header == "" {
 		return "", fmt.Errorf("An authorization header is required")
@@ -123,21 +140,63 @@ func validateMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		bearerToken, err := GetBearerToken(req.Header.Get("Authorization"))
 		if err != nil {
+			loginfo("validateMiddleware", "Error al recuperar el token JWT", "GetBearerToken", "error", err)
 			json.NewEncoder(w).Encode(err)
 			return
 		}
 
 		decodedToken, err := VerifyJwt(bearerToken, jwtSecret)
 		if err != nil {
+			loginfo("validateMiddleware", "Error al verificar el token JWT", "VerifyJwt", "error", err)
 			json.NewEncoder(w).Encode(err)
 			return
 		}
 		if decodedToken["authorized"] == true {
+			loginfo("validateMiddleware", "Token de usuario válido", "VerifyJwt", "info", nil)
 			next(w, req)
 		} else {
 			json.NewEncoder(w).Encode("Token no válido! Inicia sesión de nuevo!")
 		}
 	})
+}
+
+/**
+* Lists all dropbox files by user
+ */
+func createDropboxFolder(w http.ResponseWriter, req *http.Request) {
+	// Get user id by token and use it for create the new folder
+	bearerToken, err := GetBearerToken(req.Header.Get("Authorization"))
+	chk(err)
+	folderId := strconv.Itoa(getUserIdFromToken(bearerToken))
+	loginfo("createDropboxFolder", "Usuario "+folderId+" crea carpeta personal", "Dropbox API", "info", nil)
+
+	clientDropbox := &http.Client{}
+
+	var jsonStr = []byte(`{
+    "path": "/` + folderId + `",
+    "autorename": false
+		}`)
+
+	body := bytes.NewBuffer(jsonStr)
+
+	req, _ = http.NewRequest("POST", "https://api.dropboxapi.com/2/files/create_folder_v2", body)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+DROPBOX_TOKEN)
+
+	resp, err := clientDropbox.Do(req)
+	chk(err)
+
+	b, _ := ioutil.ReadAll(resp.Body)
+	respDropbox := string(b)
+
+	if strings.Contains(respDropbox, "metadata") && strings.Contains(respDropbox, "id") {
+		// Folder created successfully
+		responseCreateDropboxFolder(w, true, "¡Carpeta creada correctamente!")
+	} else if strings.Contains(respDropbox, "error") {
+		responseCreateDropboxFolder(w, false, "¡Carpeta personal ya existente!")
+	} else {
+		responseCreateDropboxFolder(w, false, "¡Error al crear carpeta personal!")
+	}
 }
 
 // gestiona el modo servidor
@@ -149,6 +208,7 @@ func server() {
 	mux := http.NewServeMux()
 	mux.Handle("/", http.HandlerFunc(handler))
 	mux.HandleFunc("/files/upload", validateMiddleware(handlerFileUpload))
+	mux.HandleFunc("/dropbox/create/folder", validateMiddleware(createDropboxFolder))
 
 	srv := &http.Server{Addr: ":10443", Handler: mux}
 

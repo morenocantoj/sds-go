@@ -40,6 +40,11 @@ type JwtToken struct {
 	Token string `json:"token"`
 }
 
+type createDropboxFolder struct {
+	Created bool
+	Msg     string
+}
+
 // función para comprobar errores (ahorra escritura)
 func chk(e error) {
 	if e != nil {
@@ -61,6 +66,7 @@ func menu() string {
 	fmt.Println("0- VER LISTADO DE FICHEROS")
 	fmt.Println("1- SUBIR FICHERO")
 	fmt.Println("2- DESCARGAR FICHERO")
+	fmt.Println("3- DROPBOX")
 	fmt.Println("Q- SALIR")
 	fmt.Print("Opción: ")
 	var input string
@@ -288,6 +294,8 @@ func client() {
 				case "2":
 					//TODO: Implement download menu
 					downloadFile()
+				case "3":
+					dropboxClient(client)
 				default:
 					fmt.Println("Opción incorrecta!")
 				}
