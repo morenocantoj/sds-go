@@ -69,7 +69,7 @@ func handlerFileUpload(w http.ResponseWriter, req *http.Request) {
 		userId := getUserIdFromToken(bearerToken)
 
 		// Save user file register on DB
-		userFileId, err := checkFileExistsForUser(1, data.name)
+		userFileId, err := checkFileExistsForUser(userId, data.name)
 		if err != nil {
 			log.Fatal(err)
 			response(w, false, "[server] Se ha producido un error al subir el archivo")
@@ -139,7 +139,7 @@ func handlerFileUpload(w http.ResponseWriter, req *http.Request) {
 			newFileVersion.version_num = 1
 		} else {
 			newFileVersion.version_num = lastFileVersion + 1
-			hasUpdates, err = checkLastFileVersionHasUpdates(lastFileVersion, newFile.checksum)
+			hasUpdates, err = checkLastFileVersionHasUpdates(userFileId, lastFileVersion, newFile.checksum)
 			if err != nil {
 				log.Fatal(err)
 				response(w, false, "[server] Se ha producido un error al subir el archivo")

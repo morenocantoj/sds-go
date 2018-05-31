@@ -64,28 +64,19 @@ func insertUserFile(data user_file) (int, error) {
 	chk(err)
 	loginfo("insertUserFile", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
 
-	var sqlResponse sql.NullString
-	row := db.QueryRow("INSERT INTO user_files (userId, filename, extension) VALUES (?, ?, ?)", data.userId, data.filename, data.extension)
-	err = row.Scan(&sqlResponse)
-	if err != sql.ErrNoRows {
-		chk(err)
-	}
+	res, err := db.Exec("INSERT INTO user_files (userId, filename, extension) VALUES (?, ?, ?)", data.userId, data.filename, data.extension)
+	chk(err)
 	loginfo("insertUserFile", "Insertando un archivo igual para un usuario", "db.QueryRow", "trace", nil)
 
-	if sqlResponse.Valid {
-
-		var insertedId = sqlResponse.String
-
-		id, err := strconv.Atoi(insertedId)
-		if err != nil {
-			return -1, err
-		}
-
-		return id, nil
-
-	} else {
-		return -1, errors.New("SQL Response: response is not valid")
+	insertedId, err := res.LastInsertId()
+	if err != nil {
+		return -1, err
 	}
+	id := int(insertedId)
+	if err != nil {
+		return -1, err
+	}
+	return id, nil
 
 	defer db.Close()
 	return -1, errors.New("SQL Error: something has gone wrong")
@@ -164,13 +155,20 @@ func insertFileVersion(data file_version) (int, error) {
 	return -1, errors.New("SQL Error: something has gone wrong")
 }
 
-func checkLastFileVersionHasUpdates(lastFileId int, newChecksum string) (bool, error) {
+func checkLastFileVersionHasUpdates(lastVersionFileId int, lastVersionNum int, newChecksum string) (bool, error) {
 	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
 	chk(err)
 	loginfo("checkLastFileVersionHasUpdates", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
 
+	var fileId sql.NullString
+	err = db.QueryRow("SELECT file_id FROM file_versions WHERE user_file_id = ? AND version_num = ?", lastVersionFileId, lastVersionNum).Scan(&fileId)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	chk(err)
+
 	var sqlResponse sql.NullString
-	row := db.QueryRow("SELECT checksum FROM files WHERE id = ?", lastFileId)
+	row := db.QueryRow("SELECT checksum FROM files WHERE id = ?", fileId)
 	err = row.Scan(&sqlResponse)
 	if err == sql.ErrNoRows {
 		return false, nil
@@ -237,28 +235,19 @@ func insertFileInDatabase(data file) (int, error) {
 	chk(err)
 	loginfo("insertFileInDatabase", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
 
-	var sqlResponse sql.NullString
-	row := db.QueryRow("INSERT INTO files (uuid, checksum) VALUES (?,?)", data.uuid, data.checksum)
-	err = row.Scan(&sqlResponse)
-	if err != sql.ErrNoRows {
-		chk(err)
-	}
+	res, err := db.Exec("INSERT INTO files (uuid, checksum) VALUES (?,?)", data.uuid, data.checksum)
+	chk(err)
 	loginfo("insertFileInDatabase", "Insertando un nuevo archivo en la base de datos", "db.QueryRow", "trace", nil)
 
-	if sqlResponse.Valid {
-
-		var insertedId = sqlResponse.String
-
-		id, err := strconv.Atoi(insertedId)
-		if err != nil {
-			return -1, err
-		}
-
-		return id, nil
-
-	} else {
-		return -1, errors.New("SQL Response: response is not valid")
+	insertedId, err := res.LastInsertId()
+	if err != nil {
+		return -1, err
 	}
+	id := int(insertedId)
+	if err != nil {
+		return -1, err
+	}
+	return id, nil
 
 	defer db.Close()
 	return -1, errors.New("SQL Error: something has gone wrong")
