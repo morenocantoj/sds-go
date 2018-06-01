@@ -63,6 +63,13 @@ type twoFactorStruct struct {
 	Token string
 }
 
+type fileEnumStruct struct {
+	Id       string
+	Filename string
+}
+
+type fileList []fileEnumStruct
+
 func loginfo(title string, msg string, function string, level string, err error) {
 	switch level {
 	case "trace":
@@ -99,6 +106,14 @@ func responseLogin(w io.Writer, ok bool, twoFa bool, msg string, token string) {
 	rJSON, err := json.Marshal(&r)                               // codificamos en JSON
 	chk(err)                                                     // comprobamos error
 	w.Write(rJSON)                                               // escribimos el JSON resultante
+}
+
+func responseFilesList(w io.Writer, list fileList) {
+	fmt.Printf("Values %v \n", list)
+	rJSON, err := json.Marshal(&list) // codificamos en JSON
+	fmt.Printf("JSON: %s\n", rJSON)
+	chk(err) // comprobamos error
+	w.Write(rJSON)
 }
 
 func response2FA(w io.Writer, ok bool, token string) {
@@ -140,6 +155,50 @@ func validateMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	})
 }
 
+func handlerFileList(w http.ResponseWriter, req *http.Request) {
+	bearerToken, err := GetBearerToken(req.Header.Get("Authorization"))
+	chk(err)
+	userId := strconv.Itoa(getUserIdFromToken(bearerToken))
+
+	// Open db
+	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
+	chk(err)
+	loginfo("handlerFileList", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
+
+	rows, err := db.Query("SELECT id, filename FROM user_files WHERE userId = ?", userId)
+	chk(err)
+
+	// Get column names
+	columns, err := rows.Columns()
+	chk(err)
+
+	// Make a slice for the values
+	values := make([]sql.RawBytes, len(columns))
+
+	// rows.Scan wants '[]interface{}' as an argument, so we must copy the
+	// references into such a slice
+	scanArgs := make([]interface{}, len(values))
+	for i := range values {
+		scanArgs[i] = &values[i]
+	}
+
+	var files []fileEnumStruct
+	// Fetch rows
+	for rows.Next() {
+		// get RawBytes from data
+		err = rows.Scan(scanArgs...)
+		chk(err)
+
+		// Create a file struct and append
+		file := fileEnumStruct{Id: string(values[0]), Filename: string(values[1])}
+		files = append(files, file)
+	}
+	defer db.Close()
+	fmt.Printf("Slice: %v\n", files)
+
+	responseFilesList(w, files)
+}
+
 // gestiona el modo servidor
 func server() {
 	// suscripción SIGINT
@@ -149,6 +208,7 @@ func server() {
 	mux := http.NewServeMux()
 	mux.Handle("/", http.HandlerFunc(handler))
 	mux.HandleFunc("/files/upload", validateMiddleware(handlerFileUpload))
+	mux.HandleFunc("/files", validateMiddleware(handlerFileList))
 
 	srv := &http.Server{Addr: ":10443", Handler: mux}
 
