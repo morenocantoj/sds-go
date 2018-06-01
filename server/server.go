@@ -26,7 +26,7 @@ import (
 
 var jwtSecret = ""
 
-const DATA_SOURCE_NAME = "sds:sds@tcp(127.0.0.1:3307)/sds"
+const DATA_SOURCE_NAME = "sds:sds@tcp(127.0.0.1:3306)/sds"
 
 type JwtToken struct {
 	Token string `json:"token"`
@@ -250,7 +250,10 @@ func registerUser(username string, password string) bool {
 		// User doesnt exists
 		passwordSalted, err := bcrypt.GenerateFromPassword(decode64(password), bcrypt.DefaultCost)
 		chk(err)
-		result, err := db.Exec("INSERT INTO users (email, password) VALUES (?, ?)", username, encode64(passwordSalted))
+		// Create secret key for encription
+		secretKey := generateRandomKey32Bytes()
+
+		result, err := db.Exec("INSERT INTO users (email, password, secret_key) VALUES (?, ?, ?)", username, encode64(passwordSalted), secretKey)
 		chk(err)
 		idResult, err := result.LastInsertId()
 		loginfo("registerUser", "Insertado de cuenta y password en base de datos", "db.Exec", "trace", nil)
@@ -444,6 +447,14 @@ func VerifyOtpEndpoint(tokenString string, otpToken string) (string, bool) {
 // Generates a 80 bit base32 encoded string
 func generateSecretEndpoint() string {
 	random := make([]byte, 10)
+	rand.Read(random)
+	secret := base32.StdEncoding.EncodeToString(random)
+	return secret
+}
+
+// Generates a 32 byte base32 encoded string for AES-256
+func generateRandomKey32Bytes() string {
+	random := make([]byte, 32)
 	rand.Read(random)
 	secret := base32.StdEncoding.EncodeToString(random)
 	return secret
