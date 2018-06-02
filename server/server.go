@@ -26,7 +26,7 @@ import (
 
 var jwtSecret = ""
 
-const DATA_SOURCE_NAME = "sds:sds@tcp(127.0.0.1:3307)/sds"
+const DATA_SOURCE_NAME = "sds:sds@tcp(127.0.0.1:3306)/sds"
 
 type JwtToken struct {
 	Token string `json:"token"`
@@ -62,6 +62,13 @@ type twoFactorStruct struct {
 	Ok    bool
 	Token string
 }
+
+type fileEnumStruct struct {
+	Id       string
+	Filename string
+}
+
+type fileList []fileEnumStruct
 
 func loginfo(title string, msg string, function string, level string, err error) {
 	switch level {
@@ -99,6 +106,14 @@ func responseLogin(w io.Writer, ok bool, twoFa bool, msg string, token string) {
 	rJSON, err := json.Marshal(&r)                               // codificamos en JSON
 	chk(err)                                                     // comprobamos error
 	w.Write(rJSON)                                               // escribimos el JSON resultante
+}
+
+func responseFilesList(w io.Writer, list fileList) {
+	fmt.Printf("Values %v \n", list)
+	rJSON, err := json.Marshal(&list) // codificamos en JSON
+	fmt.Printf("JSON: %s\n", rJSON)
+	chk(err) // comprobamos error
+	w.Write(rJSON)
 }
 
 func response2FA(w io.Writer, ok bool, token string) {
@@ -140,6 +155,50 @@ func validateMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	})
 }
 
+func handlerFileList(w http.ResponseWriter, req *http.Request) {
+	bearerToken, err := GetBearerToken(req.Header.Get("Authorization"))
+	chk(err)
+	userId := strconv.Itoa(getUserIdFromToken(bearerToken))
+
+	// Open db
+	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
+	chk(err)
+	loginfo("handlerFileList", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
+
+	rows, err := db.Query("SELECT id, filename FROM user_files WHERE userId = ?", userId)
+	chk(err)
+
+	// Get column names
+	columns, err := rows.Columns()
+	chk(err)
+
+	// Make a slice for the values
+	values := make([]sql.RawBytes, len(columns))
+
+	// rows.Scan wants '[]interface{}' as an argument, so we must copy the
+	// references into such a slice
+	scanArgs := make([]interface{}, len(values))
+	for i := range values {
+		scanArgs[i] = &values[i]
+	}
+
+	var files []fileEnumStruct
+	// Fetch rows
+	for rows.Next() {
+		// get RawBytes from data
+		err = rows.Scan(scanArgs...)
+		chk(err)
+
+		// Create a file struct and append
+		file := fileEnumStruct{Id: string(values[0]), Filename: string(values[1])}
+		files = append(files, file)
+	}
+	defer db.Close()
+	fmt.Printf("Slice: %v\n", files)
+
+	responseFilesList(w, files)
+}
+
 // gestiona el modo servidor
 func server() {
 	// suscripción SIGINT
@@ -148,6 +207,7 @@ func server() {
 
 	mux := http.NewServeMux()
 	mux.Handle("/", http.HandlerFunc(handler))
+	mux.HandleFunc("/files", validateMiddleware(handlerFileList))
 	mux.HandleFunc("/files/checkPackage", validateMiddleware(handlerPackageCheck))
 	mux.HandleFunc("/files/uploadPackage", validateMiddleware(handlerPackageUpload))
 	mux.HandleFunc("/files/saveFile", validateMiddleware(handlerFileSave))
@@ -252,7 +312,10 @@ func registerUser(username string, password string) bool {
 		// User doesnt exists
 		passwordSalted, err := bcrypt.GenerateFromPassword(decode64(password), bcrypt.DefaultCost)
 		chk(err)
-		result, err := db.Exec("INSERT INTO users (email, password) VALUES (?, ?)", username, encode64(passwordSalted))
+		// Create secret key for encription
+		secretKey := generateRandomKey32Bytes()
+
+		result, err := db.Exec("INSERT INTO users (email, password, secret_key) VALUES (?, ?, ?)", username, encode64(passwordSalted), secretKey)
 		chk(err)
 		idResult, err := result.LastInsertId()
 		loginfo("registerUser", "Insertado de cuenta y password en base de datos", "db.Exec", "trace", nil)
@@ -446,6 +509,14 @@ func VerifyOtpEndpoint(tokenString string, otpToken string) (string, bool) {
 // Generates a 80 bit base32 encoded string
 func generateSecretEndpoint() string {
 	random := make([]byte, 10)
+	rand.Read(random)
+	secret := base32.StdEncoding.EncodeToString(random)
+	return secret
+}
+
+// Generates a 32 byte base32 encoded string for AES-256
+func generateRandomKey32Bytes() string {
+	random := make([]byte, 32)
 	rand.Read(random)
 	secret := base32.StdEncoding.EncodeToString(random)
 	return secret

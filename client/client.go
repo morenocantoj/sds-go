@@ -40,6 +40,11 @@ type JwtToken struct {
 	Token string `json:"token"`
 }
 
+type UserFile struct {
+	Id       string
+	Filename string
+}
+
 // función para comprobar errores (ahorra escritura)
 func chk(e error) {
 	if e != nil {
@@ -281,7 +286,7 @@ func client() {
 				switch optMenu {
 				case "0":
 					//TODO: Implement list files menu
-					listFiles()
+					listFiles(client)
 				case "1":
 					//TODO: Implement upload menu
 					uploadFile(client)

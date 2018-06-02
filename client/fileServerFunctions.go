@@ -17,12 +17,31 @@ func check(e error) {
 	}
 }
 
-func listFiles() {
-	fmt.Println("Falta por implementar!!")
+func listFiles(client *http.Client) {
+	req, err := http.NewRequest("GET", "https://localhost:10443/files", nil)
+	chk(err)
+	req.Header.Set("Authorization", "Bearer "+tokenSesion)
 
-	var filename string
-	fmt.Printf("Introduce el fichero a subir: ")
-	fmt.Scanf("%s\n", &filename)
+	resp, err := client.Do(req)
+	chk(err)
+
+	fileList := make([]UserFile, 0)
+	body, err := ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
+
+	json.Unmarshal(body, &fileList)
+
+	// Check if we have files
+	if len(fileList) > 0 {
+		fmt.Println("Estos son los ficheros disponibles")
+
+		for i, file := range fileList {
+			fmt.Printf("%d- %s \n", i+1, file.Filename)
+			fmt.Println("---")
+		}
+	} else {
+		fmt.Println("¡No tienes ficheros subidos en la plataforma!")
+	}
 }
 
 func uploadFile(client *http.Client) {
