@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -50,7 +51,22 @@ func downloadFileDropboxClient(client *http.Client, token string) {
 	chk(err)
 
 	if downloadedFile.Downloaded == true {
-		// Save file in downloads
+		fmt.Println("File name " + downloadedFile.Filename)
+		// Compare file checksum
+		checksumFile := sha256.Sum256(downloadedFile.Content)
+		slice := checksumFile[:]
+		checksumString := encode64(slice)
+
+		if checksumString == downloadedFile.Checksum {
+			// Save file
+			err = ioutil.WriteFile("./downloads/"+downloadedFile.Filename, downloadedFile.Content, 0644)
+			chk(err)
+			fmt.Println("Fichero descargado correctamente en el directorio 'downloads'")
+
+		} else {
+			// Corrupted file
+			fmt.Println("¡Error! El archivo no concuerda. Puede que el fichero esté corrompido")
+		}
 	} else {
 		// Error downloading file
 		fmt.Println("¡Error al descargar el fichero!")
