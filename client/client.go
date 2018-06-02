@@ -45,6 +45,13 @@ type createDropboxFolder struct {
 	Msg     string
 }
 
+type DropboxDownload struct {
+	Downloaded bool
+	Content    []byte
+	Filename   string
+	Checksum   string
+}
+
 // función para comprobar errores (ahorra escritura)
 func chk(e error) {
 	if e != nil {

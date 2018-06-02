@@ -17,13 +17,43 @@ func dropboxClient(client *http.Client) {
 		case "1":
 			//TODO: Implement upload menu
 		case "2":
-			//TODO: Implement download menu
+			downloadFileDropboxClient(client, tokenSesion)
 		case "3":
 			createDropboxFolderClient(client, tokenSesion)
 		default:
 			fmt.Println("Opción incorrecta!")
 		}
 		optMenu = dropboxMenu()
+	}
+}
+
+func downloadFileDropboxClient(client *http.Client, token string) {
+	// TODO: List files!
+	fmt.Printf("Introduce el nombre del archivo a descargar: ")
+	var filename string
+	fmt.Scanf("%s\n", &filename)
+
+	url := "https://localhost:10443/dropbox/files/download?filename=" + filename
+	req, err := http.NewRequest("GET", url, nil)
+	chk(err)
+
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := client.Do(req)
+	chk(err)
+
+	b, err := ioutil.ReadAll(resp.Body)
+	chk(err)
+
+	var downloadedFile DropboxDownload
+	err = json.Unmarshal(b, &downloadedFile)
+	chk(err)
+
+	if downloadedFile.Downloaded == true {
+		// Save file in downloads
+	} else {
+		// Error downloading file
+		fmt.Println("¡Error al descargar el fichero!")
 	}
 }
 

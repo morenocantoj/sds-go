@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/base32"
 	"encoding/base64"
@@ -73,6 +74,25 @@ type twoFactorStruct struct {
 	Token string
 }
 
+type DropboxDownloadStruct struct {
+	Name            string `json:"name"`
+	Path_lower      string `json:"path_lower"`
+	Path_display    string `json:"path_display"`
+	Id              string `json:"id"`
+	Client_modified string `json:"client_modified"`
+	Server_modified string `json:"server_modified"`
+	Rev             string `json:"rev"`
+	Size            int    `json:"size"`
+	Content_hash    string `json:"content_hash"`
+}
+
+type DropboxDownloadResponse struct {
+	Downloaded bool
+	Content    []byte
+	Filename   string
+	Checksum   string
+}
+
 func loginfo(title string, msg string, function string, level string, err error) {
 	switch level {
 	case "trace":
@@ -120,6 +140,13 @@ func response2FA(w io.Writer, ok bool, token string) {
 
 func responseCreateDropboxFolder(w io.Writer, created bool, msg string) {
 	r := respCreateDropboxFolder{Created: created, Msg: msg}
+	rJSON, err := json.Marshal(&r)
+	chk(err)
+	w.Write(rJSON)
+}
+
+func responseDownloadDropboxfile(w io.Writer, downloaded bool, content []byte, filename string, checksum string) {
+	r := DropboxDownloadResponse{Downloaded: downloaded, Content: content, Filename: filename, Checksum: checksum}
 	rJSON, err := json.Marshal(&r)
 	chk(err)
 	w.Write(rJSON)
@@ -199,6 +226,53 @@ func createDropboxFolder(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+func downloadFileDropbox(w http.ResponseWriter, req *http.Request) {
+	bearerToken, err := GetBearerToken(req.Header.Get("Authorization"))
+	chk(err)
+	folderId := strconv.Itoa(getUserIdFromToken(bearerToken))
+	queryParams := req.URL.Query()
+	filename := queryParams.Get("filename")
+
+	loginfo("downloadfileDropbox", "Usuario "+folderId+" intenta bajar archivo "+filename, "Dropbox API", "info", nil)
+
+	// Make request for dropbox
+	clientDropbox := &http.Client{}
+	fullPath := "/" + folderId + "/" + filename
+
+	dropboxHeader := `{"path": "` + fullPath + `"}`
+
+	req, _ = http.NewRequest("POST", "https://content.dropboxapi.com/2/files/download", nil)
+	req.Header.Set("Content-Type", "text/plain")
+	req.Header.Set("Authorization", "Bearer "+DROPBOX_TOKEN)
+	req.Header.Set("Dropbox-API-Arg", dropboxHeader)
+
+	resp, err := clientDropbox.Do(req)
+	chk(err)
+
+	// Get body response
+	b, _ := ioutil.ReadAll(resp.Body)
+	contentFile := b
+
+	jsonResult := DropboxDownloadStruct{}
+	jsonString := resp.Header.Get("dropbox-api-result")
+
+	err = json.Unmarshal([]byte(jsonString), &jsonResult)
+	if err != nil {
+		// Fail downloading file
+		responseDownloadDropboxfile(w, false, contentFile, "err", "err")
+
+	} else {
+		// Correct response
+
+		// Checksum
+		checksumFile := sha256.Sum256(contentFile)
+		slice := checksumFile[:]
+		checksumString := encode64(slice)
+
+		responseDownloadDropboxfile(w, true, contentFile, filename, checksumString)
+	}
+}
+
 // gestiona el modo servidor
 func server() {
 	// suscripción SIGINT
@@ -209,6 +283,7 @@ func server() {
 	mux.Handle("/", http.HandlerFunc(handler))
 	mux.HandleFunc("/files/upload", validateMiddleware(handlerFileUpload))
 	mux.HandleFunc("/dropbox/create/folder", validateMiddleware(createDropboxFolder))
+	mux.HandleFunc("/dropbox/files/download", validateMiddleware(downloadFileDropbox))
 
 	srv := &http.Server{Addr: ":10443", Handler: mux}
 
