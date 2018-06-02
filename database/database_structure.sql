@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: localhost
--- Tiempo de generación: 02-06-2018 a las 03:37:10
+-- Tiempo de generación: 02-06-2018 a las 14:17:44
 -- Versión del servidor: 10.1.29-MariaDB
 -- Versión de PHP: 7.1.12
 
@@ -74,7 +74,9 @@ CREATE TABLE `packages` (
 CREATE TABLE `users` (
   `id` int(11) NOT NULL,
   `email` varchar(50) COLLATE utf8_bin NOT NULL,
-  `password` varchar(100) COLLATE utf8_bin NOT NULL
+  `password` varchar(255) COLLATE utf8_bin NOT NULL,
+  `token_2fa` varchar(500) COLLATE utf8_bin DEFAULT NULL,
+  `secret_key` varchar(500) COLLATE utf8_bin NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
 
 -- --------------------------------------------------------
@@ -117,8 +119,7 @@ ALTER TABLE `packages`
 -- Indices de la tabla `users`
 --
 ALTER TABLE `users`
-  ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `email` (`email`);
+  ADD PRIMARY KEY (`id`);
 
 --
 -- Indices de la tabla `user_files`
@@ -134,7 +135,7 @@ ALTER TABLE `user_files`
 -- AUTO_INCREMENT de la tabla `files`
 --
 ALTER TABLE `files`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT de la tabla `file_packages`
@@ -146,19 +147,19 @@ ALTER TABLE `file_packages`
 -- AUTO_INCREMENT de la tabla `packages`
 --
 ALTER TABLE `packages`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=37;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT de la tabla `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT de la tabla `user_files`
 --
 ALTER TABLE `user_files`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
