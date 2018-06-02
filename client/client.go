@@ -14,16 +14,22 @@ import (
 )
 
 var tokenSesion = ""
+var userSecretKey = ""
 
 func changeToken(newToken string) {
 	tokenSesion = newToken
 }
 
+func changeSecretKey(newSecret string) {
+	userSecretKey = newSecret
+}
+
 type loginStruct struct {
-	Ok    bool
-	TwoFa bool
-	Msg   string
-	Token string
+	Ok        bool
+	TwoFa     bool
+	Msg       string
+	Token     string
+	SecretKey string
 }
 
 type twoFactorStruct struct {
@@ -178,6 +184,7 @@ func loginTwoAuth(client *http.Client, tokenSesion string) bool {
 
 	if loginResponse.Ok {
 		changeToken(loginResponse.Token)
+		changeSecretKey(loginResponse.SecretKey)
 		return true
 	}
 
@@ -268,6 +275,7 @@ func client() {
 		fmt.Println("Hola de nuevo " + username)
 		// Cambiamos el token de sesion
 		changeToken(loginResponse.Token)
+		changeSecretKey(loginResponse.SecretKey)
 
 		if loginResponse.TwoFa {
 			login = loginTwoAuth(client, tokenSesion)

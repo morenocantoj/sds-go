@@ -2,7 +2,9 @@ package main
 
 import (
 	"crypto/md5"
+	"encoding/base32"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -101,7 +103,13 @@ func uploadFile(client *http.Client) {
 				"checksum": partChecksum,
 			}
 
-			uploadedPartId, err := filePartUpload(client, "https://localhost:10443/files/uploadPackage", extraParams, "file", part, index+1)
+			// cypher part
+			key, err := base32.StdEncoding.DecodeString(userSecretKey)
+			chk(err)
+			partContentEncrypted := encrypt(part, key)
+
+			// send part
+			uploadedPartId, err := filePartUpload(client, "https://localhost:10443/files/uploadPackage", extraParams, "file", partContentEncrypted, index+1)
 			chk(err)
 			partId = uploadedPartId
 		}

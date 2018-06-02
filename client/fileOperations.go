@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -41,6 +43,26 @@ type saveFileStruct struct {
 
 const MAX_PACKAGE_SIZE = 4 * 1000 * 1000 // 4MB
 
+// función para cifrar (con AES en este caso), adjunta el IV al principio
+func encrypt(data, key []byte) (out []byte) {
+	out = make([]byte, len(data)+16)    // reservamos espacio para el IV al principio
+	blk, err := aes.NewCipher(key)      // cifrador en bloque (AES), usa key
+	chk(err)                            // comprobamos el error
+	ctr := cipher.NewCTR(blk, out[:16]) // cifrador en flujo: modo CTR, usa IV
+	ctr.XORKeyStream(out[16:], data)    // ciframos los datos
+	return
+}
+
+// función para descifrar (con AES en este caso)
+func decrypt(data, key []byte) (out []byte) {
+	out = make([]byte, len(data)-16)     // la salida no va a tener el IV
+	blk, err := aes.NewCipher(key)       // cifrador en bloque (AES), usa key
+	chk(err)                             // comprobamos el error
+	ctr := cipher.NewCTR(blk, data[:16]) // cifrador en flujo: modo CTR, usa IV
+	ctr.XORKeyStream(out, data[16:])     // desciframos (doble cifrado) los datos
+	return
+}
+
 func readFile(inputFile string) (fileStruct, error) {
 	var data fileStruct
 	var fileAbsPath string
@@ -69,6 +91,7 @@ func readFile(inputFile string) (fileStruct, error) {
 	data.extension = extension
 	data.filepath = fileAbsPath
 	data.content = file
+
 	return data, err
 }
 

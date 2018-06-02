@@ -2,7 +2,6 @@ package main
 
 import (
 	"io/ioutil"
-	"log"
 )
 
 type filePartStruct struct {
@@ -23,10 +22,7 @@ func saveFile(fileData filePartStruct, file_uuid string) (string, error) {
 	var dst = "./files/" + file_uuid //+ fileData.extension
 
 	err := ioutil.WriteFile(dst, fileData.content, 0666)
-	if err != nil {
-		log.Fatal(err)
-		return "", err
-	}
+	chk(err)
 
 	return file_uuid, nil
 }

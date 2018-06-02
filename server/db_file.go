@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"strconv"
 )
 
@@ -92,7 +91,6 @@ func insertUserFile(data user_file) (int, error) {
 	return -1, errors.New("SQL Error: something has gone wrong")
 }
 
-// FIXME
 func checkUserFileLastVersion(userFileId int) (int, error) {
 	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
 	chk(err)
@@ -130,7 +128,6 @@ func checkUserFileLastVersion(userFileId int) (int, error) {
 	return -1, errors.New("SQL Error: something has gone wrong")
 }
 
-// FIXME
 func insertFile(data file) (int, error) {
 	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
 	chk(err)
@@ -154,7 +151,6 @@ func insertFile(data file) (int, error) {
 	return -1, errors.New("SQL Error: something has gone wrong")
 }
 
-// FIXME
 func checkLastFileVersionHasUpdates(userFileId int, lastVersionNum int, newChecksum string) (bool, error) {
 	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
 	chk(err)
@@ -189,17 +185,16 @@ func checkLastFileVersionHasUpdates(userFileId int, lastVersionNum int, newCheck
 func checkPackageExistsInDatabase(checksum string) (int, error) {
 	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
 	chk(err)
-	loginfo("checkFileExistsInDatabase", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
+	loginfo("checkPackageExistsInDatabase", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
 
 	var sqlResponse sql.NullString
 	row := db.QueryRow("SELECT id FROM packages WHERE checksum = ?", checksum)
 	err = row.Scan(&sqlResponse)
-	fmt.Println(checksum)
 	if err == sql.ErrNoRows {
 		return -1, nil
 	}
 	chk(err)
-	loginfo("checkFileExistsInDatabase", "Comprobado si existe un archivo igual almacenado en la base de datos", "db.QueryRow", "trace", nil)
+	loginfo("checkPackageExistsInDatabase", "Comprobado si existe un archivo igual almacenado en la base de datos", "db.QueryRow", "trace", nil)
 
 	if sqlResponse.Valid {
 

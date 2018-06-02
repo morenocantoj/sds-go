@@ -7,6 +7,7 @@ import (
 	"encoding/base32"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -26,7 +27,7 @@ import (
 
 var jwtSecret = ""
 
-const DATA_SOURCE_NAME = "sds:sds@tcp(127.0.0.1:3306)/sds"
+const DATA_SOURCE_NAME = "sds:sds@tcp(127.0.0.1:3307)/sds"
 
 type JwtToken struct {
 	Token string `json:"token"`
@@ -39,10 +40,11 @@ type resp struct {
 }
 
 type respLogin struct {
-	Ok    bool   // true -> correcto, false -> error
-	TwoFa bool   // Two Factor enabled
-	Msg   string // mensaje adicional
-	Token string
+	Ok        bool   // true -> correcto, false -> error
+	TwoFa     bool   // Two Factor enabled
+	Msg       string // mensaje adicional
+	Token     string
+	SecretKey string
 }
 
 type user struct {
@@ -101,11 +103,11 @@ func response(w io.Writer, ok bool, msg string) {
 	w.Write(rJSON)                 // escribimos el JSON resultante
 }
 
-func responseLogin(w io.Writer, ok bool, twoFa bool, msg string, token string) {
-	r := respLogin{Ok: ok, TwoFa: twoFa, Msg: msg, Token: token} // formateamos respuesta
-	rJSON, err := json.Marshal(&r)                               // codificamos en JSON
-	chk(err)                                                     // comprobamos error
-	w.Write(rJSON)                                               // escribimos el JSON resultante
+func responseLogin(w io.Writer, ok bool, twoFa bool, msg string, token string, secret string) {
+	r := respLogin{Ok: ok, TwoFa: twoFa, Msg: msg, Token: token, SecretKey: secret} // formateamos respuesta
+	rJSON, err := json.Marshal(&r)                                                  // codificamos en JSON
+	chk(err)                                                                        // comprobamos error
+	w.Write(rJSON)                                                                  // escribimos el JSON resultante
 }
 
 func responseFilesList(w io.Writer, list fileList) {
@@ -153,50 +155,6 @@ func validateMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			json.NewEncoder(w).Encode("Token no válido! Inicia sesión de nuevo!")
 		}
 	})
-}
-
-func handlerFileList(w http.ResponseWriter, req *http.Request) {
-	bearerToken, err := GetBearerToken(req.Header.Get("Authorization"))
-	chk(err)
-	userId := strconv.Itoa(getUserIdFromToken(bearerToken))
-
-	// Open db
-	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
-	chk(err)
-	loginfo("handlerFileList", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
-
-	rows, err := db.Query("SELECT id, filename FROM user_files WHERE userId = ?", userId)
-	chk(err)
-
-	// Get column names
-	columns, err := rows.Columns()
-	chk(err)
-
-	// Make a slice for the values
-	values := make([]sql.RawBytes, len(columns))
-
-	// rows.Scan wants '[]interface{}' as an argument, so we must copy the
-	// references into such a slice
-	scanArgs := make([]interface{}, len(values))
-	for i := range values {
-		scanArgs[i] = &values[i]
-	}
-
-	var files []fileEnumStruct
-	// Fetch rows
-	for rows.Next() {
-		// get RawBytes from data
-		err = rows.Scan(scanArgs...)
-		chk(err)
-
-		// Create a file struct and append
-		file := fileEnumStruct{Id: string(values[0]), Filename: string(values[1])}
-		files = append(files, file)
-	}
-	defer db.Close()
-	fmt.Printf("Slice: %v\n", files)
-
-	responseFilesList(w, files)
 }
 
 // gestiona el modo servidor
@@ -351,6 +309,31 @@ func checkTwoFaEnabled(username string) bool {
 
 }
 
+func getUserSecretKey(username string) (string, error) {
+	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
+	chk(err)
+	loginfo("getUserSecretKey", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
+
+	var sqlResponse sql.NullString
+	row := db.QueryRow("SELECT secret_key FROM users WHERE email = ?", username)
+	err = row.Scan(&sqlResponse)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	chk(err)
+	loginfo("getUserSecretKey", "Obteniendo la clave secreta del usuario para cifrar archivos", "db.QueryRow", "trace", nil)
+
+	if sqlResponse.Valid {
+		var userSecret = sqlResponse.String
+		return userSecret, nil
+	} else {
+		return "", errors.New("SQL Response: response is not valid")
+	}
+
+	defer db.Close()
+	return "", errors.New("SQL Error: something has gone wrong")
+}
+
 func login(w http.ResponseWriter, req *http.Request) {
 	username := req.Form.Get("username")
 	password := req.Form.Get("password")
@@ -360,11 +343,13 @@ func login(w http.ResponseWriter, req *http.Request) {
 		loginfo("login", "Usuario "+username+" autenticado en el sistema", "handler", "info", nil)
 		token := CreateTokenEndpoint(username, password)
 		twoFa := checkTwoFaEnabled(username)
+		secret, err := getUserSecretKey(username)
+		chk(err)
 
-		responseLogin(w, true, twoFa, "Usuario "+username+" autenticado en el sistema", token)
+		responseLogin(w, true, twoFa, "Usuario "+username+" autenticado en el sistema", token, secret)
 	} else {
 		loginfo("login", "Usuario "+username+" ha fallado al autenticarse en el sistema", "handler", "warning", nil)
-		responseLogin(w, false, false, "Usuario "+username+" autenticado en el sistema", "")
+		responseLogin(w, false, false, "Usuario "+username+" autenticado en el sistema", "", "")
 	}
 }
 
@@ -372,9 +357,11 @@ func doubleLogin(w http.ResponseWriter, req *http.Request) {
 	otpToken := req.Form.Get("otpToken")
 	tokenString := req.Form.Get("token")
 	tokenResult, correct := VerifyOtpEndpoint(tokenString, otpToken)
+	// TODO: enviar secretKey
+	// secretKey := getUserSecretKey()
 	fmt.Println(tokenResult)
 	fmt.Println(correct)
-	responseLogin(w, correct, true, "Autenticación en el sistema (2FA)", tokenResult)
+	responseLogin(w, correct, true, "Autenticación en el sistema (2FA)", tokenResult, "")
 }
 
 func register(w http.ResponseWriter, req *http.Request) {
