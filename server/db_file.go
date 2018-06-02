@@ -263,3 +263,173 @@ func insertFilePackage(data file_package) (int, error) {
 	defer db.Close()
 	return -1, errors.New("SQL Error: something has gone wrong")
 }
+
+func getFileId(user_file_id int, version int) (int, error) {
+	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
+	chk(err)
+	loginfo("getFileId", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
+
+	var sqlResponse sql.NullString
+	row := db.QueryRow("SELECT id FROM files WHERE user_file_id = ? AND version = ?", user_file_id, version)
+	err = row.Scan(&sqlResponse)
+	if err == sql.ErrNoRows {
+		return -1, nil
+	}
+	chk(err)
+	loginfo("getFileId", "Obteniendo id de una version de un archivo de un usuario", "db.QueryRow", "trace", nil)
+
+	if sqlResponse.Valid {
+
+		var fileId = sqlResponse.String
+
+		if fileId != "" {
+			id, err := strconv.Atoi(fileId)
+			if err != nil {
+				return -1, err
+			}
+			return id, nil
+		} else {
+			return -1, nil
+		}
+
+	} else {
+		return -1, errors.New("SQL Response: response is not valid")
+	}
+
+	defer db.Close()
+	return -1, errors.New("SQL Error: something has gone wrong")
+}
+
+func getFileChecksum(user_file_id int, version int) (string, error) {
+	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
+	chk(err)
+	loginfo("getFileChecksum", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
+
+	var sqlResponse sql.NullString
+	row := db.QueryRow("SELECT checksum FROM files WHERE user_file_id = ? AND version = ?", user_file_id, version)
+	err = row.Scan(&sqlResponse)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	chk(err)
+	loginfo("getFileChecksum", "Obteniendo id de una version de un archivo de un usuario", "db.QueryRow", "trace", nil)
+
+	if sqlResponse.Valid {
+
+		var fileChecksum = sqlResponse.String
+
+		return fileChecksum, nil
+
+	} else {
+		return "", errors.New("SQL Response: response is not valid")
+	}
+
+	defer db.Close()
+	return "", errors.New("SQL Error: something has gone wrong")
+}
+
+func getUserFileName(user_file_id int) (string, error) {
+	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
+	chk(err)
+	loginfo("getUserFileName", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
+
+	var sqlResponse sql.NullString
+	row := db.QueryRow("SELECT filename FROM user_files WHERE id = ?", user_file_id)
+	err = row.Scan(&sqlResponse)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	chk(err)
+	loginfo("getUserFileName", "Obteniendo el nombre de un archivo", "db.QueryRow", "trace", nil)
+
+	if sqlResponse.Valid {
+
+		var fileName = sqlResponse.String
+
+		return fileName, nil
+
+	} else {
+		return "", errors.New("SQL Response: response is not valid")
+	}
+
+	defer db.Close()
+	return "", errors.New("SQL Error: something has gone wrong")
+}
+
+func getFilePackages(file_id int) (map[int]int, error) {
+	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
+	chk(err)
+	loginfo("getFilePackages", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
+
+	rows, err := db.Query("SELECT package_id, package_index FROM file_packages WHERE file_id = ?", file_id)
+	chk(err)
+	loginfo("getFilePackages", "Obteniendo los paquetes de un archivo de un usuario", "db.QueryRow", "trace", nil)
+	defer rows.Close()
+
+	packages := make(map[int]int)
+
+	for rows.Next() {
+		var (
+			package_id    int
+			package_index int
+		)
+		if err := rows.Scan(&package_id, &package_index); err != nil {
+			return nil, err
+		}
+		packages[package_index] = package_id
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return packages, nil
+}
+
+func getPackageUuid(package_id int) (string, int, error) {
+	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
+	chk(err)
+	loginfo("getPackageUuid", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
+
+	var (
+		uuid           string
+		upload_user_id int
+	)
+	row := db.QueryRow("SELECT uuid, upload_user_id FROM packages WHERE id = ?", package_id)
+	err = row.Scan(&uuid, &upload_user_id)
+	if err == sql.ErrNoRows {
+		return "", -1, nil
+	}
+	chk(err)
+	loginfo("getPackageUuid", "Obteniendo uuid de un paquete", "db.QueryRow", "trace", nil)
+
+	return uuid, upload_user_id, nil
+
+	defer db.Close()
+	return "", -1, errors.New("SQL Error: something has gone wrong")
+}
+
+func getUserSecretKeyById(userId int) (string, error) {
+	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
+	chk(err)
+	loginfo("getUserSecretKeyById", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
+
+	var sqlResponse sql.NullString
+	row := db.QueryRow("SELECT secret_key FROM users WHERE id = ?", userId)
+	err = row.Scan(&sqlResponse)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	chk(err)
+	loginfo("getUserSecretKeyById", "Obteniendo la clave secreta del usuario para cifrar archivos", "db.QueryRow", "trace", nil)
+
+	if sqlResponse.Valid {
+
+		var secretKey = sqlResponse.String
+		return secretKey, nil
+
+	} else {
+		return "", errors.New("SQL Response: response is not valid")
+	}
+
+	defer db.Close()
+	return "", errors.New("SQL Error: something has gone wrong")
+}

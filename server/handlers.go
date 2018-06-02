@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"encoding/base32"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -39,6 +40,14 @@ type uploadPackageResponse struct {
 type saveFileResponse struct {
 	Ok  bool
 	Msg string
+}
+
+type downloadFileResponse struct {
+	Ok          bool
+	Msg         string
+	FileContent []byte
+	FileName    string
+	Checksum    string
 }
 
 func chkErrorPackageUpload(err error, w http.ResponseWriter) {
@@ -348,4 +357,71 @@ func handlerFileList(w http.ResponseWriter, req *http.Request) {
 	fmt.Printf("Slice: %v\n", files)
 
 	responseFilesList(w, files)
+}
+
+func handlerFileDownload(w http.ResponseWriter, req *http.Request) {
+	userFileIdInString := req.URL.Query().Get("file")
+	userFileId, err := strconv.Atoi(userFileIdInString)
+
+	// Get actual user ID
+	bearerToken, err := GetBearerToken(req.Header.Get("Authorization"))
+	chkErrorPackageUpload(err, w)
+	userId := getUserIdFromToken(bearerToken)
+
+	lastFileVersion, err := checkUserFileLastVersion(userFileId)
+	chk(err)
+	if lastFileVersion == -1 {
+		return
+	}
+
+	fileId, err := getFileId(userFileId, lastFileVersion)
+	chk(err)
+
+	packageIds, err := getFilePackages(fileId)
+	chk(err)
+
+	var fileContent []byte
+	//packages := make(map[int][]byte)
+
+	for _, packageId := range packageIds {
+		packageUuid, uploadUserId, err := getPackageUuid(packageId)
+		chk(err)
+
+		secretKey, err := getUserSecretKeyById(uploadUserId)
+		chk(err)
+
+		packageContent, err := readFile(packageUuid)
+		chk(err)
+
+		// decrypt package with user's secret key who's uploaded
+		key, err := base32.StdEncoding.DecodeString(secretKey)
+		chk(err)
+		packageContentDecryted := decrypt(packageContent, key)
+
+		fileContent = append(fileContent, packageContentDecryted...)
+		//packages[packageIndex] = packageContent
+	}
+
+	// encrypt file content with requested user's secret key
+	userSecretKey, err := getUserSecretKeyById(userId)
+	chk(err)
+	userKey, err := base32.StdEncoding.DecodeString(userSecretKey)
+	chk(err)
+	fileContentEncrypted := encrypt(fileContent, userKey)
+
+	fileChecksum, err := getFileChecksum(userFileId, lastFileVersion)
+	chk(err)
+	fileName, err := getUserFileName(userFileId)
+	chk(err)
+
+	var downloadFile downloadFileResponse
+	downloadFile.Ok = true
+	downloadFile.Msg = "Listo"
+	downloadFile.FileContent = fileContentEncrypted
+	downloadFile.FileName = fileName
+	downloadFile.Checksum = fileChecksum
+
+	rJSON, err := json.Marshal(&downloadFile) // codificamos en JSON
+	chk(err)                                  // comprobamos error
+	w.Write(rJSON)
 }

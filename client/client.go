@@ -300,7 +300,7 @@ func client() {
 					uploadFile(client)
 				case "2":
 					//TODO: Implement download menu
-					downloadFile()
+					downloadFile(client)
 				default:
 					fmt.Println("Opción incorrecta!")
 				}

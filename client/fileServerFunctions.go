@@ -125,10 +125,31 @@ func uploadFile(client *http.Client) {
 	chk(err)
 }
 
-func downloadFile() {
-	fmt.Println("Falta por implementar!!")
-
+func downloadFile(client *http.Client) {
 	var fileId string
 	fmt.Printf("Introduce el id del fichero a descargar: ")
 	fmt.Scanf("%s\n", &fileId)
+
+	fmt.Print("\nDescargando archivo... ")
+
+	req, err := http.NewRequest("GET", "https://localhost:10443/files/download?file="+fileId, nil)
+	chk(err)
+	req.Header.Set("Authorization", "Bearer "+tokenSesion)
+
+	resp, err := client.Do(req)
+	chk(err)
+
+	var downloadFile downloadFileStruct
+	bodyResponse, err := ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
+	json.Unmarshal(bodyResponse, &downloadFile)
+
+	// decypher file
+	key, err := base32.StdEncoding.DecodeString(userSecretKey)
+	chk(err)
+	fileContentDecrypted := decrypt(downloadFile.FileContent, key)
+
+	saveFile(fileContentDecrypted, downloadFile.FileName)
+
+	fmt.Println(downloadFile.Msg + "\n")
 }

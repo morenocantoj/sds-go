@@ -41,6 +41,14 @@ type saveFileStruct struct {
 	Msg string
 }
 
+type downloadFileStruct struct {
+	Ok           bool
+	Msg          string
+	FileChecksum string
+	FileContent  []byte
+	FileName     string
+}
+
 const MAX_PACKAGE_SIZE = 4 * 1000 * 1000 // 4MB
 
 // función para cifrar (con AES en este caso), adjunta el IV al principio
@@ -93,6 +101,14 @@ func readFile(inputFile string) (fileStruct, error) {
 	data.content = file
 
 	return data, err
+}
+
+func saveFile(fileContent []byte, filename string) {
+	// TODO: Check if files folder exists (if not create it)
+	var dst = "./downloads/" + filename
+
+	err := ioutil.WriteFile(dst, fileContent, 0666)
+	chk(err)
 }
 
 func filePartUpload(client *http.Client, uri string, params map[string]string, paramName string, partFile []byte, partIndex int) (int, error) {

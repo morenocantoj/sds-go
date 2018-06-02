@@ -3,3 +3,5 @@
 
 # Unignore all with extensions
 !*.*
+
+/downloads/*
