@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: localhost
--- Tiempo de generación: 30-05-2018 a las 02:03:53
+-- Tiempo de generación: 02-06-2018 a las 03:37:10
 -- Versión del servidor: 10.1.29-MariaDB
 -- Versión de PHP: 7.1.12
 
@@ -30,22 +30,39 @@ SET time_zone = "+00:00";
 
 CREATE TABLE `files` (
   `id` int(11) NOT NULL,
-  `uuid` varchar(100) COLLATE utf8_bin NOT NULL,
-  `checksum` varchar(500) COLLATE utf8_bin NOT NULL
+  `user_file_id` int(11) NOT NULL,
+  `packages_num` int(11) NOT NULL,
+  `checksum` varchar(500) COLLATE utf8_bin NOT NULL,
+  `version` int(11) NOT NULL,
+  `size` float NOT NULL,
+  `timestamp` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
 
 -- --------------------------------------------------------
 
 --
--- Estructura de tabla para la tabla `files_versions`
+-- Estructura de tabla para la tabla `file_packages`
 --
 
-CREATE TABLE `files_versions` (
+CREATE TABLE `file_packages` (
   `id` int(11) NOT NULL,
-  `user_file_id` int(11) NOT NULL,
   `file_id` int(11) NOT NULL,
-  `version_num` int(11) NOT NULL,
-  `timestamp` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `package_id` int(11) NOT NULL,
+  `package_index` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `packages`
+--
+
+CREATE TABLE `packages` (
+  `id` int(11) NOT NULL,
+  `uuid` varchar(100) COLLATE utf8_bin NOT NULL,
+  `checksum` varchar(500) COLLATE utf8_bin NOT NULL,
+  `timestamp` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `upload_user_id` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
 
 -- --------------------------------------------------------
@@ -59,15 +76,6 @@ CREATE TABLE `users` (
   `email` varchar(50) COLLATE utf8_bin NOT NULL,
   `password` varchar(100) COLLATE utf8_bin NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
-
---
--- Volcado de datos para la tabla `users`
---
-
-INSERT INTO `users` (`id`, `email`, `password`) VALUES
-(1, 'j', 'JDJhJDEwJG5MS2o0bEcxajkxSS5DaXBVbml6LmVTdmhpQ3YwTUJHb1pRTkhLYmxMbFdEZHl1Q3hUbFpL'),
-(2, 's', 'JDJhJDEwJEpONGdZT0dwN0NBc0thSWFoVUpET09GQTFDSld3b3owYTRxLmlFYjVaa1ZiMjZUYjNSSlc2'),
-(3, 'a', 'JDJhJDEwJG92UExRR2RtRU9LNFU2YzFSaC5UdmUzOGtrVFVLc3Z0UVhzOXc2MGhQbk95WmduRklrTGFT');
 
 -- --------------------------------------------------------
 
@@ -90,14 +98,20 @@ CREATE TABLE `user_files` (
 -- Indices de la tabla `files`
 --
 ALTER TABLE `files`
-  ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `uuid` (`uuid`);
+  ADD PRIMARY KEY (`id`);
 
 --
--- Indices de la tabla `files_versions`
+-- Indices de la tabla `file_packages`
 --
-ALTER TABLE `files_versions`
+ALTER TABLE `file_packages`
   ADD PRIMARY KEY (`id`);
+
+--
+-- Indices de la tabla `packages`
+--
+ALTER TABLE `packages`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uuid` (`uuid`);
 
 --
 -- Indices de la tabla `users`
@@ -120,25 +134,31 @@ ALTER TABLE `user_files`
 -- AUTO_INCREMENT de la tabla `files`
 --
 ALTER TABLE `files`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
+
+--
+-- AUTO_INCREMENT de la tabla `file_packages`
+--
+ALTER TABLE `file_packages`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT de la tabla `files_versions`
+-- AUTO_INCREMENT de la tabla `packages`
 --
-ALTER TABLE `files_versions`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+ALTER TABLE `packages`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=37;
 
 --
 -- AUTO_INCREMENT de la tabla `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT de la tabla `user_files`
 --
 ALTER TABLE `user_files`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"strconv"
 )
 
@@ -18,9 +19,10 @@ type file_version struct {
 	version_num  int
 }
 
-type file struct {
-	uuid     string
-	checksum string
+type packageFile struct {
+	uuid           string
+	checksum       string
+	upload_user_id int
 }
 
 func checkFileExistsForUser(userId int, filename string) (int, error) {
@@ -194,14 +196,15 @@ func checkLastFileVersionHasUpdates(lastVersionFileId int, lastVersionNum int, n
 	return false, errors.New("SQL Error: something has gone wrong")
 }
 
-func checkFileExistsInDatabase(checksum string) (int, error) {
+func checkPackageExistsInDatabase(checksum string) (int, error) {
 	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
 	chk(err)
 	loginfo("checkFileExistsInDatabase", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
 
 	var sqlResponse sql.NullString
-	row := db.QueryRow("SELECT id FROM files WHERE checksum = ?", checksum)
+	row := db.QueryRow("SELECT id FROM packages WHERE checksum = ?", checksum)
 	err = row.Scan(&sqlResponse)
+	fmt.Println(checksum)
 	if err == sql.ErrNoRows {
 		return -1, nil
 	}
@@ -230,14 +233,14 @@ func checkFileExistsInDatabase(checksum string) (int, error) {
 	return -1, errors.New("SQL Error: something has gone wrong")
 }
 
-func insertFileInDatabase(data file) (int, error) {
+func insertPackageInDatabase(data packageFile) (int, error) {
 	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
 	chk(err)
-	loginfo("insertFileInDatabase", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
+	loginfo("insertPackageInDatabase", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
 
-	res, err := db.Exec("INSERT INTO files (uuid, checksum) VALUES (?,?)", data.uuid, data.checksum)
+	res, err := db.Exec("INSERT INTO packages (uuid, checksum, upload_user_id) VALUES (?,?,?)", data.uuid, data.checksum, data.upload_user_id)
 	chk(err)
-	loginfo("insertFileInDatabase", "Insertando un nuevo archivo en la base de datos", "db.QueryRow", "trace", nil)
+	loginfo("insertPackageInDatabase", "Insertando un nuevo paquete en la base de datos", "db.QueryRow", "trace", nil)
 
 	insertedId, err := res.LastInsertId()
 	if err != nil {

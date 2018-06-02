@@ -148,6 +148,7 @@ func server() {
 
 	mux := http.NewServeMux()
 	mux.Handle("/", http.HandlerFunc(handler))
+	mux.HandleFunc("/files/check", validateMiddleware(handlerFileCheck))
 	mux.HandleFunc("/files/upload", validateMiddleware(handlerFileUpload))
 
 	srv := &http.Server{Addr: ":10443", Handler: mux}

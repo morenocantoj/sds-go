@@ -1,10 +1,13 @@
 package main
 
 import (
-	"encoding/json"
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
+	"strconv"
 )
 
 func check(e error) {
@@ -33,34 +36,59 @@ func uploadFile(client *http.Client) {
 		return
 	}
 
-	// Realizamos la petición
-	extraParams := map[string]string{
-		"name":      fileData.name,
-		"extension": fileData.extension,
-		"user":      "n",
-	}
-	request, err := newfileUploadRequest("https://localhost:10443/files/upload", extraParams, "file", fileData.filepath)
-	if err != nil {
-		fmt.Printf("ERROR!! Ha fallado la comunicación con el servidor\n\n")
-		return
-	}
+	// User File Data (saved on DB in case of success)
+	// user_file_data := map[string]string{
+	// 	"name":      fileData.name,
+	// 	"extension": fileData.extension,
+	// }
 
-	resp, err := client.Do(request)
-	if err != nil {
-		fmt.Printf("ERROR!! Ha fallado la comunicación con el servidor\n\n")
-		return
-	} else {
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			fmt.Printf("ERROR!! Ha fallado la comunicación con el servidor\n\n")
-			return
+	// -- divide file in parts
+	file, err := os.Open(fileData.filepath)
+	chk(err)
+	defer file.Close()
+
+	contentInBytes, err := ioutil.ReadAll(file)
+	chk(err)
+	// fileChecksumInBytes := md5.Sum(contentInBytes)
+	// fileChecksumString := hex.EncodeToString(fileChecksumInBytes[:])
+
+	fileParts := split(contentInBytes, MAX_PACKAGE_SIZE)
+	// --
+
+	var filePartsIds []int
+
+	for index, part := range fileParts {
+
+		// file part checksum
+		fmt.Println("Comprobando paquete " + strconv.Itoa(index+1) + "/" + strconv.Itoa(len(fileParts)))
+
+		checksumInBytes := md5.Sum(part)
+		partChecksum := hex.EncodeToString(checksumInBytes[:])
+
+		fileExists, partId, err := checkFileExists(client, "https://localhost:10443/files/check", partChecksum)
+		chk(err)
+		if fileExists == false {
+
+			// file part upload
+			fmt.Println("Enviando paquete " + strconv.Itoa(index+1) + " ...")
+
+			extraParams := map[string]string{
+				"filename": fileData.name,
+				"index":    strconv.Itoa(index + 1),
+				"checksum": partChecksum,
+			}
+
+			uploadedPartId, err := filePartUpload(client, "https://localhost:10443/files/upload", extraParams, "file", part, index+1)
+			chk(err)
+			partId = uploadedPartId
 		}
-		resp.Body.Close()
-
-		var data loginStruct
-		json.Unmarshal(body, &data)
-		fmt.Printf("\n%v\n\n", data.Msg)
+		filePartsIds = append(filePartsIds, partId)
 	}
+
+	// TODO: Enviar datos del archivo
+	fmt.Println("--------------")
+	fmt.Println(filePartsIds)
+
 }
 
 func downloadFile() {
