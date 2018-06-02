@@ -8,10 +8,18 @@ import (
 	"io/ioutil"
 	"mime/multipart"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 )
+
+type fileInfoStruct struct {
+	filename   string
+	extension  string
+	packageIds []string
+	checksum   string
+	size       int64
+}
 
 type fileStruct struct {
 	name      string
@@ -26,7 +34,12 @@ type checkFileStruct struct {
 	Msg string
 }
 
-const MAX_PACKAGE_SIZE = 4 * 1000 // 4MB
+type saveFileStruct struct {
+	Ok  bool
+	Msg string
+}
+
+const MAX_PACKAGE_SIZE = 4 * 1000 * 1000 // 4MB
 
 func readFile(inputFile string) (fileStruct, error) {
 	var data fileStruct
@@ -94,7 +107,7 @@ func filePartUpload(client *http.Client, uri string, params map[string]string, p
 	return data.Id, err
 }
 
-func checkFileExists(client *http.Client, uri string, checksum string) (bool, int, error) {
+func checkPackageExists(client *http.Client, uri string, checksum string) (bool, int, error) {
 	params := map[string]string{
 		"checksum": checksum,
 	}
@@ -125,58 +138,38 @@ func checkFileExists(client *http.Client, uri string, checksum string) (bool, in
 	return checkResponse.Ok, checkResponse.Id, err
 }
 
-// ------------------------------
-// ------------------------------
-// ------------------------------
-// FIXME: OLD --> delete on finish
-// ------------------------------
-// ------------------------------
-// ------------------------------
-// Creates a new file upload http request with optional extra params
-func newfileUploadRequest(uri string, params map[string]string, paramName, path string) (*http.Request, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
+func saveFileInfo(client *http.Client, uri string, fileinfo fileInfoStruct) (bool, error) {
+	params := map[string]string{
+		"filename":   fileinfo.filename,
+		"extension":  fileinfo.extension,
+		"checksum":   fileinfo.checksum,
+		"size":       strconv.Itoa(int(fileinfo.size)),
+		"packageIds": strings.Join(fileinfo.packageIds, ","),
 	}
-	defer file.Close()
-
-	contentInBytes, err := ioutil.ReadAll(file)
-	fileParts := split(contentInBytes, MAX_PACKAGE_SIZE)
 
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 
-	for index, part := range fileParts {
-		fmt.Println("PART " + strconv.Itoa(index))
-		fmt.Println(part)
-
-		reader := bytes.NewReader(part)
-
-		partWriter, err := writer.CreateFormFile(paramName, strconv.Itoa(index)) //filepath.Base(path))
-		if err != nil {
-			return nil, err
-		}
-		_, err = io.Copy(partWriter, reader)
-	}
-
-	// body := &bytes.Buffer{}
-	// writer := multipart.NewWriter(body)
-	// part, err := writer.CreateFormFile(paramName, filepath.Base(path))
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// _, err = io.Copy(part, reader)
-
 	for key, val := range params {
 		_ = writer.WriteField(key, val)
 	}
-	err = writer.Close()
-	if err != nil {
-		return nil, err
-	}
+	err := writer.Close()
 
 	req, err := http.NewRequest("POST", uri, body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	req.Header.Set("Authorization", "Bearer "+tokenSesion)
-	return req, err
+
+	r, err := client.Do(req)
+	chk(err)
+
+	bodyResponse, err := ioutil.ReadAll(r.Body)
+	chk(err)
+
+	var saveFileResponse saveFileStruct
+	err = json.Unmarshal(bodyResponse, &saveFileResponse)
+	chk(err)
+	fmt.Printf("%v\n\n", saveFileResponse.Msg)
+	defer r.Body.Close()
+
+	return saveFileResponse.Ok, err
 }

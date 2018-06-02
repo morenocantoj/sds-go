@@ -13,10 +13,18 @@ type user_file struct {
 	extension string
 }
 
-type file_version struct {
+type file struct {
 	user_file_id int
-	file_id      int
-	version_num  int
+	packages_num int
+	checksum     string
+	version      int
+	size         int
+}
+
+type file_package struct {
+	file_id       int
+	package_id    int
+	package_index int
 }
 
 type packageFile struct {
@@ -84,13 +92,14 @@ func insertUserFile(data user_file) (int, error) {
 	return -1, errors.New("SQL Error: something has gone wrong")
 }
 
+// FIXME
 func checkUserFileLastVersion(userFileId int) (int, error) {
 	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
 	chk(err)
 	loginfo("checkUserFileLastVersion", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
 
 	var sqlResponse sql.NullString
-	row := db.QueryRow("SELECT max(version_num) as lastVersion FROM file_versions WHERE user_file_id = ?", userFileId)
+	row := db.QueryRow("SELECT max(version) as lastVersion FROM files WHERE user_file_id = ?", userFileId)
 	err = row.Scan(&sqlResponse)
 	if err == sql.ErrNoRows || sqlResponse.String == "" {
 		return -1, nil
@@ -121,59 +130,40 @@ func checkUserFileLastVersion(userFileId int) (int, error) {
 	return -1, errors.New("SQL Error: something has gone wrong")
 }
 
-func insertFileVersion(data file_version) (int, error) {
+// FIXME
+func insertFile(data file) (int, error) {
 	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
 	chk(err)
-	loginfo("insertFileVersion", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
+	loginfo("insertFile", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
 
-	var sqlResponse sql.NullString
-	row := db.QueryRow("INSERT INTO file_versions (user_file_id, file_id, version_num) VALUES (?,?,?)", data.user_file_id, data.file_id, data.version_num)
-	err = row.Scan(&sqlResponse)
-	if err != sql.ErrNoRows {
-		chk(err)
+	res, err := db.Exec("INSERT INTO files (user_file_id, packages_num, checksum, version, size) VALUES (?,?,?,?,?)", data.user_file_id, data.packages_num, data.checksum, data.version, data.size)
+	chk(err)
+	loginfo("insertFile", "Insertando un archivo de un usuario", "db.QueryRow", "trace", nil)
+
+	insertedId, err := res.LastInsertId()
+	if err != nil {
+		return -1, err
 	}
-	loginfo("insertFileVersion", "Insertando una nueva version de un archivo de un usuario", "db.QueryRow", "trace", nil)
-
-	if err == sql.ErrNoRows || sqlResponse.String == "" {
-		return -1, nil
+	id := int(insertedId)
+	if err != nil {
+		return -1, err
 	}
-
-	if sqlResponse.Valid {
-
-		var insertedId = sqlResponse.String
-
-		id, err := strconv.Atoi(insertedId)
-		if err != nil {
-			return -1, err
-		}
-
-		return id, nil
-
-	} else {
-		return -1, errors.New("SQL Response: response is not valid")
-	}
+	return id, nil
 
 	defer db.Close()
 	return -1, errors.New("SQL Error: something has gone wrong")
 }
 
-func checkLastFileVersionHasUpdates(lastVersionFileId int, lastVersionNum int, newChecksum string) (bool, error) {
+// FIXME
+func checkLastFileVersionHasUpdates(userFileId int, lastVersionNum int, newChecksum string) (bool, error) {
 	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
 	chk(err)
 	loginfo("checkLastFileVersionHasUpdates", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
 
-	var fileId sql.NullString
-	err = db.QueryRow("SELECT file_id FROM file_versions WHERE user_file_id = ? AND version_num = ?", lastVersionFileId, lastVersionNum).Scan(&fileId)
-	if err == sql.ErrNoRows {
-		return false, nil
-	}
-	chk(err)
-
 	var sqlResponse sql.NullString
-	row := db.QueryRow("SELECT checksum FROM files WHERE id = ?", fileId)
-	err = row.Scan(&sqlResponse)
+	err = db.QueryRow("SELECT checksum FROM files WHERE user_file_id = ? AND version = ?", userFileId, lastVersionNum).Scan(&sqlResponse)
 	if err == sql.ErrNoRows {
-		return false, nil
+		return true, nil
 	}
 	chk(err)
 	loginfo("checkLastFileVersionHasUpdates", "Comprobado si la anterior version del archivo es igual al nuevo archivo subido", "db.QueryRow", "trace", nil)
@@ -241,6 +231,29 @@ func insertPackageInDatabase(data packageFile) (int, error) {
 	res, err := db.Exec("INSERT INTO packages (uuid, checksum, upload_user_id) VALUES (?,?,?)", data.uuid, data.checksum, data.upload_user_id)
 	chk(err)
 	loginfo("insertPackageInDatabase", "Insertando un nuevo paquete en la base de datos", "db.QueryRow", "trace", nil)
+
+	insertedId, err := res.LastInsertId()
+	if err != nil {
+		return -1, err
+	}
+	id := int(insertedId)
+	if err != nil {
+		return -1, err
+	}
+	return id, nil
+
+	defer db.Close()
+	return -1, errors.New("SQL Error: something has gone wrong")
+}
+
+func insertFilePackage(data file_package) (int, error) {
+	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
+	chk(err)
+	loginfo("insertFilePackage", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
+
+	res, err := db.Exec("INSERT INTO file_packages (file_id, package_id, package_index) VALUES (?,?,?)", data.file_id, data.package_id, data.package_index)
+	chk(err)
+	loginfo("insertFilePackage", "Relacionando un paquete con un archivo en la base de datos", "db.QueryRow", "trace", nil)
 
 	insertedId, err := res.LastInsertId()
 	if err != nil {

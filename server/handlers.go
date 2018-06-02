@@ -15,6 +15,14 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
+type fileInfoStruct struct {
+	filename   string
+	extension  string
+	packageIds []string
+	checksum   string
+	size       int
+}
+
 type checkFileResponse struct {
 	Ok  bool
 	Id  int
@@ -27,14 +35,26 @@ type uploadPackageResponse struct {
 	Msg string
 }
 
-func chkErrorFileUpload(err error, w http.ResponseWriter) {
+type saveFileResponse struct {
+	Ok  bool
+	Msg string
+}
+
+func chkErrorPackageUpload(err error, w http.ResponseWriter) {
 	if err != nil {
 		log.Fatal(err)
 		response(w, false, "[server] Se ha producido un error al subir el paquete")
 	}
 }
 
-func handlerFileUpload(w http.ResponseWriter, req *http.Request) {
+func chkErrorFileSave(err error, w http.ResponseWriter) {
+	if err != nil {
+		log.Fatal(err)
+		response(w, false, "[server] Se ha producido un error al guardar el archivo")
+	}
+}
+
+func handlerPackageUpload(w http.ResponseWriter, req *http.Request) {
 	if req.Method != "POST" {
 		io.WriteString(w, "Only POST is supported!")
 		return
@@ -86,12 +106,12 @@ func handlerFileUpload(w http.ResponseWriter, req *http.Request) {
 
 		// Get actual user ID
 		bearerToken, err := GetBearerToken(req.Header.Get("Authorization"))
-		chkErrorFileUpload(err, w)
+		chkErrorPackageUpload(err, w)
 		userId := getUserIdFromToken(bearerToken)
 
 		// File data
 		uid, err := uuid.NewV4()
-		chkErrorFileUpload(err, w)
+		chkErrorPackageUpload(err, w)
 
 		var newFile packageFile
 		newFile.uuid = uid.String()
@@ -108,17 +128,17 @@ func handlerFileUpload(w http.ResponseWriter, req *http.Request) {
 
 		// Save file on DB
 		insertedPackageId, err := insertPackageInDatabase(newFile)
-		chkErrorFileUpload(err, w)
+		chkErrorPackageUpload(err, w)
 		fmt.Println("-------")
 		fmt.Println(insertedPackageId)
-		r := uploadPackageResponse{Ok: true, Id: insertedPackageId, Msg: "Subido"}
+		r := uploadPackageResponse{Ok: true, Id: insertedPackageId, Msg: "Listo"}
 		rJSON, err := json.Marshal(&r)
-		chkErrorFileUpload(err, w)
+		chkErrorPackageUpload(err, w)
 		w.Write(rJSON)
 	}
 }
 
-func handlerFileCheck(w http.ResponseWriter, req *http.Request) {
+func handlerPackageCheck(w http.ResponseWriter, req *http.Request) {
 	if req.Method != "POST" {
 		io.WriteString(w, "Only POST is supported!")
 		return
@@ -171,22 +191,17 @@ func handlerFileCheck(w http.ResponseWriter, req *http.Request) {
 	w.Write(rJSON)
 }
 
-// --------
-// -------
-// FIXME: delete! it's OLD
-func handlerFileUploadOld(w http.ResponseWriter, req *http.Request) {
+func handlerFileSave(w http.ResponseWriter, req *http.Request) {
 	if req.Method != "POST" {
 		io.WriteString(w, "Only POST is supported!")
 		return
 	}
-
-	var data fileStruct
+	var fileinfo fileInfoStruct
 
 	mediaType, params, err := mime.ParseMediaType(req.Header.Get("Content-Type"))
 	if err != nil {
 		log.Fatal(err)
 	}
-	var fileParts [][]byte
 
 	if strings.HasPrefix(mediaType, "multipart/") {
 		mr := multipart.NewReader(req.Body, params["boundary"])
@@ -205,125 +220,88 @@ func handlerFileUploadOld(w http.ResponseWriter, req *http.Request) {
 			}
 
 			switch p.FormName() {
-			case "file":
-				data.content = slurp
-				// Check if is file content
-				contentType := p.Header.Get("Content-type")
-				if contentType == "application/octet-stream" {
-				}
-				fileParts = append(fileParts, slurp)
-				fmt.Println(p.FileName())
-			case "name":
-				data.name = string(slurp)
+			case "filename":
+				fileinfo.filename = string(slurp)
 			case "extension":
-				data.extension = string(slurp)
+				fileinfo.extension = string(slurp)
+			case "checksum":
+				fileinfo.checksum = string(slurp)
+			case "size":
+				filesize := string(slurp)
+				fileinfo.size, _ = strconv.Atoi(filesize)
+			case "packageIds":
+				packageIdsInString := string(slurp)
+				fileinfo.packageIds = strings.Split(packageIdsInString, ",")
 			default:
 			}
 
 		}
-
-		for index, part := range fileParts {
-			fmt.Println("PART " + strconv.Itoa(index))
-			fmt.Println(string(part[:]))
-		}
-
-		// // Get actual user ID
-		// bearerToken, err := GetBearerToken(req.Header.Get("Authorization"))
-		// if err != nil {
-		// 	log.Fatal(err)
-		// 	response(w, false, "[server] Se ha producido un error al subir el archivo")
-		// }
-		// userId := getUserIdFromToken(bearerToken)
-		//
-		// // Save user file register on DB
-		// userFileId, err := checkFileExistsForUser(userId, data.name)
-		// if err != nil {
-		// 	log.Fatal(err)
-		// 	response(w, false, "[server] Se ha producido un error al subir el archivo")
-		// }
-		// if userFileId == -1 {
-		// 	var newUserFile user_file
-		// 	newUserFile.userId = userId
-		// 	newUserFile.filename = data.name
-		// 	newUserFile.extension = data.extension
-		//
-		// 	insertedUserFileId, err := insertUserFile(newUserFile)
-		// 	if err != nil {
-		// 		log.Fatal(err)
-		// 		response(w, false, "[server] Se ha producido un error al subir el archivo")
-		// 	}
-		// 	userFileId = insertedUserFileId
-		// }
-		//
-		// // Save file
-		// var newFile file
-		//
-		// uid, err := uuid.NewV4()
-		// if err != nil {
-		// 	log.Fatal(err)
-		// 	response(w, false, "[server] Se ha producido un error al subir el archivo")
-		// }
-		// newFile.uuid = uid.String()
-		//
-		// checksumInBytes := md5.Sum(data.content)
-		// newFile.checksum = hex.EncodeToString(checksumInBytes[:])
-		//
-		// fileId, err := checkFileExistsInDatabase(newFile.checksum)
-		// if err != nil {
-		// 	log.Fatal(err)
-		// 	response(w, false, "[server] Se ha producido un error al subir el archivo")
-		// }
-		// if fileId == -1 {
-		// 	// Save file on DB Storage
-		// 	saved_uuid, err := saveFile(data, newFile.uuid)
-		// 	if err != nil || saved_uuid == "" {
-		// 		log.Fatal(err)
-		// 		response(w, false, "[server] Se ha producido un error al subir el archivo")
-		// 	}
-		// 	fmt.Printf("Archivo \"%v\" subido correctamente\n", data.name)
-		//
-		// 	// Save file on DB
-		// 	insertedFileId, err := insertFileInDatabase(newFile)
-		// 	if err != nil {
-		// 		log.Fatal(err)
-		// 		response(w, false, "[server] Se ha producido un error al subir el archivo")
-		// 	}
-		// 	fileId = insertedFileId
-		// }
-		//
-		// // Save file version on DB
-		// lastFileVersion, err := checkUserFileLastVersion(userFileId)
-		// if err != nil {
-		// 	log.Fatal(err)
-		// 	response(w, false, "[server] Se ha producido un error al subir el archivo")
-		// }
-		//
-		// hasUpdates := true
-		// var newFileVersion file_version
-		// newFileVersion.user_file_id = userFileId
-		// newFileVersion.file_id = fileId
-		// if lastFileVersion == -1 {
-		// 	newFileVersion.version_num = 1
-		// } else {
-		// 	newFileVersion.version_num = lastFileVersion + 1
-		// 	hasUpdates, err = checkLastFileVersionHasUpdates(userFileId, lastFileVersion, newFile.checksum)
-		// 	if err != nil {
-		// 		log.Fatal(err)
-		// 		response(w, false, "[server] Se ha producido un error al subir el archivo")
-		// 	}
-		// }
-		//
-		// if hasUpdates == true {
-		// 	_, err = insertFileVersion(newFileVersion)
-		// 	if err != nil {
-		// 		log.Fatal(err)
-		// 		response(w, false, "[server] Se ha producido un error al subir el archivo")
-		// 	}
-		//
-		// 	response(w, true, "[server] Archivo subido")
-		// } else {
-		// 	response(w, true, "[server] El archivo ya existe")
-		// }
-		response(w, true, "[server] oki")
 	}
+
+	r := saveFileResponse{Ok: false, Msg: ""}
+
+	// Get actual user ID
+	bearerToken, err := GetBearerToken(req.Header.Get("Authorization"))
+	chkErrorFileSave(err, w)
+	userId := getUserIdFromToken(bearerToken)
+
+	// Save user file register on DB
+	userFileId, err := checkFileExistsForUser(userId, fileinfo.filename)
+	chkErrorFileSave(err, w)
+	if userFileId == -1 {
+		var newUserFile user_file
+		newUserFile.userId = userId
+		newUserFile.filename = fileinfo.filename
+		newUserFile.extension = fileinfo.extension
+
+		insertedUserFileId, err := insertUserFile(newUserFile)
+		chkErrorFileSave(err, w)
+		userFileId = insertedUserFileId
+	}
+
+	// Save file version on DB
+	lastFileVersion, err := checkUserFileLastVersion(userFileId)
+	chkErrorFileSave(err, w)
+
+	hasUpdates, err := checkLastFileVersionHasUpdates(userFileId, lastFileVersion, fileinfo.checksum)
+	chkErrorFileSave(err, w)
+
+	if hasUpdates == true {
+		var newFile file
+		newFile.user_file_id = userFileId
+		newFile.packages_num = len(fileinfo.packageIds)
+		newFile.checksum = fileinfo.checksum
+		if lastFileVersion == -1 {
+			newFile.version = 1
+		} else {
+			newFile.version = lastFileVersion + 1
+		}
+		newFile.size = fileinfo.size
+
+		insertedFileId, err := insertFile(newFile)
+		chkErrorFileSave(err, w)
+
+		for index, packageIdInString := range fileinfo.packageIds {
+			packageId, err := strconv.Atoi(packageIdInString)
+			chkErrorFileSave(err, w)
+
+			var newFilePackage file_package
+			newFilePackage.file_id = insertedFileId
+			newFilePackage.package_id = packageId
+			newFilePackage.package_index = index + 1
+
+			_, err = insertFilePackage(newFilePackage)
+			chkErrorFileSave(err, w)
+
+			r.Ok = true
+			r.Msg = "Listo"
+		}
+	} else {
+		r.Ok = true
+		r.Msg = "El archivo ya existe"
+	}
+
+	rJSON, err := json.Marshal(&r) // codificamos en JSON
+	chk(err)                       // comprobamos error
+	w.Write(rJSON)
 }
