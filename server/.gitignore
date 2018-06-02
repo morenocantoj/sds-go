@@ -6,7 +6,7 @@
 **/.DS_Store
 
 
-!files/
+files/*
 
 # Unignore all with extensions
 !*.*
