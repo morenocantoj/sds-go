@@ -315,7 +315,6 @@ func handlerFileList(w http.ResponseWriter, req *http.Request) {
 		files = append(files, file)
 	}
 	defer db.Close()
-	fmt.Printf("Slice: %v\n", files)
 
 	responseFilesList(w, files)
 }
@@ -358,13 +357,13 @@ func handlerFileDownload(w http.ResponseWriter, req *http.Request) {
 	//packages := make(map[int][]byte)
 
 	for _, filePackage := range packages {
-		packageUuid, uploadUserId, err := getPackageUuid(filePackage.package_id)
+		filePackage, err := getPackage(filePackage.package_id)
 		chk(err)
 
-		secretKey, err := getUserSecretKeyById(uploadUserId)
+		secretKey, err := getUserSecretKeyById(filePackage.upload_user_id)
 		chk(err)
 
-		packageContent, err := readFile(packageUuid)
+		packageContent, err := readFile(filePackage.uuid)
 		chk(err)
 
 		// decrypt package with user's secret key who's uploaded
@@ -449,12 +448,17 @@ func handlerFileDelete(w http.ResponseWriter, req *http.Request) {
 			otherFilesUsingPackage, err := getOtherFilesUsingPackage(filePackage.package_id, file.id)
 			chk(err)
 			if len(otherFilesUsingPackage) <= 0 {
-				// Borrar paquete en BD
-				_, err := deletePackageInDatabase(filePackage.package_id)
+				// Borrar paquete en Storage
+				packageInfo, err := getPackage(filePackage.package_id)
 				chk(err)
-				// TODO: Borrar paquete en Storage
-				//_, err := deletePackageInDatabase(filePackage.package_id)
-				//chk(err)
+
+				_, err = deleteFile(packageInfo.uuid)
+				chk(err)
+
+				// Borrar paquete en BD
+				_, err = deletePackageInDatabase(filePackage.package_id)
+				chk(err)
+
 				fmt.Printf("Borrado paquete: %s", filePackage.package_id)
 			}
 		}
@@ -462,7 +466,7 @@ func handlerFileDelete(w http.ResponseWriter, req *http.Request) {
 		// Borrar de file_packages, files
 		_, err = deleteFilePackages(file.id)
 		chk(err)
-		_, err = deleteFile(file.id)
+		_, err = deleteFileInDatabase(file.id)
 		chk(err)
 	}
 	// Borrar de user_files

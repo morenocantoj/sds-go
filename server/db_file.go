@@ -354,27 +354,24 @@ func getFilePackages(file_id int) ([]file_package, error) {
 	return packages, nil
 }
 
-func getPackageUuid(package_id int) (string, int, error) {
+func getPackage(package_id int) (packageFile, error) {
 	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
 	chk(err)
-	loginfo("getPackageUuid", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
+	loginfo("getPackage", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
 
-	var (
-		uuid           string
-		upload_user_id int
-	)
-	row := db.QueryRow("SELECT uuid, upload_user_id FROM packages WHERE id = ?", package_id)
-	err = row.Scan(&uuid, &upload_user_id)
+	var filePackage packageFile
+	row := db.QueryRow("SELECT * FROM packages WHERE id = ?", package_id)
+	err = row.Scan(&filePackage.id, &filePackage.uuid, &filePackage.checksum, &filePackage.timestamp, &filePackage.upload_user_id)
 	if err == sql.ErrNoRows {
-		return "", -1, nil
+		return filePackage, nil
 	}
 	chk(err)
-	loginfo("getPackageUuid", "Obteniendo uuid de un paquete", "db.QueryRow", "trace", nil)
+	loginfo("getPackage", "Obteniendo uuid de un paquete", "db.QueryRow", "trace", nil)
 
-	return uuid, upload_user_id, nil
+	return filePackage, nil
 
 	defer db.Close()
-	return "", -1, errors.New("SQL Error: something has gone wrong")
+	return filePackage, errors.New("SQL Error: something has gone wrong")
 }
 
 // FIXME: move to db_auth.go
@@ -521,7 +518,7 @@ func deleteFilePackages(file_id int) (bool, error) {
 	return false, errors.New("SQL Error: something has gone wrong")
 }
 
-func deleteFile(file_id int) (bool, error) {
+func deleteFileInDatabase(file_id int) (bool, error) {
 	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
 	chk(err)
 	loginfo("deleteFile", "Conexión a MySQL abierta", "sql.Open", "trace", nil)

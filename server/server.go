@@ -66,10 +66,8 @@ func responseLogin(w io.Writer, ok bool, twoFa bool, msg string, token string, s
 }
 
 func responseFilesList(w io.Writer, list fileList) {
-	fmt.Printf("Values %v \n", list)
 	rJSON, err := json.Marshal(&list) // codificamos en JSON
-	fmt.Printf("JSON: %s\n", rJSON)
-	chk(err) // comprobamos error
+	chk(err)                          // comprobamos error
 	w.Write(rJSON)
 }
 

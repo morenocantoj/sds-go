@@ -25,9 +25,11 @@ type file_package struct {
 }
 
 type packageFile struct {
+	id             int
 	uuid           string
 	checksum       string
 	upload_user_id int
+	timestamp      string
 }
 
 // handlers.go
