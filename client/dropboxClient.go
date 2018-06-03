@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"mime/multipart"
 	"net/http"
+	"path/filepath"
 )
 
 func dropboxClient(client *http.Client) {
@@ -25,20 +26,33 @@ func dropboxClient(client *http.Client) {
 		case "3":
 			createDropboxFolderClient(client, tokenSesion)
 		default:
-			fmt.Println("Opción incorrecta!")
+			fmt.Println("\nOpción incorrecta!\n")
 		}
 		optMenu = dropboxMenu()
 	}
 }
 
 func uploadFileDropboxClient(client *http.Client, token string) {
-	var filename string
-	fmt.Printf("Introduce el archivo a subir (P.ej.: /Users/username/Desktop/file.txt). El fichero debe ser menor de 150MB: ")
-	fmt.Scanf("%s\n", &filename)
+	var inputFile string
+	fmt.Println("Introduce el archivo a subir (P.ej.: /Users/username/Desktop/file.txt) ")
+	fmt.Println("-- El fichero debe ser menor de 150MB --")
+	fmt.Print("-> ")
+	fmt.Scanf("%s\n", &inputFile)
 
-	fileData, err := ioutil.ReadFile(filename)
+	var fileAbsPath string
+	isAbsolute := filepath.IsAbs(inputFile)
+	if isAbsolute {
+		fileAbsPath = inputFile
+	} else {
+		folderPath, err := filepath.Abs("./")
+		chk(err)
+		fileAbsPath = folderPath + "/" + inputFile
+	}
+	filename := filepath.Base(fileAbsPath)
+
+	fileData, err := ioutil.ReadFile(fileAbsPath)
 	if err != nil {
-		fmt.Printf("ERROR!! No se encuentra el archivo introducido\n\n")
+		fmt.Printf("\nERROR!! No se encuentra el archivo introducido\n\n")
 		return
 	}
 
@@ -81,7 +95,7 @@ func uploadFileDropboxClient(client *http.Client, token string) {
 	var uploadResponse uploadFileDropbox
 	err = json.Unmarshal(b, &uploadResponse)
 
-	fmt.Println(uploadResponse.Msg)
+	fmt.Printf("\n%s\n\n", uploadResponse.Msg)
 }
 
 func listFilesDropboxClient(client *http.Client, token string) {
@@ -100,19 +114,20 @@ func listFilesDropboxClient(client *http.Client, token string) {
 	var filesDropbox fileListDropbox
 	err = json.Unmarshal(b, &filesDropbox)
 	if err != nil {
-		fmt.Println("¡Ha habido un error en la petición!")
-
+		fmt.Println("\n¡Ha habido un error en la petición!\n")
 	} else {
 		// Check if we have files
 		if len(filesDropbox.Entries) > 0 {
-			fmt.Println("Estos son los ficheros disponibles en Dropbox")
+			fmt.Println("\nEstos son los ficheros disponibles en Dropbox:\n")
+			fmt.Println("\t ID - Filename")
+			fmt.Println("\t-------------------------------------")
 
 			for i, file := range filesDropbox.Entries {
-				fmt.Printf("%d- %s \n", i+1, file.Name)
-				fmt.Println("---")
+				fmt.Printf("\t  %d - %s \n", i+1, file.Name)
 			}
+			fmt.Printf("\n\n")
 		} else {
-			fmt.Println("¡No tienes ficheros subidos en la plataforma!")
+			fmt.Println("\n¡No tienes ficheros subidos en la plataforma!\n\n")
 		}
 	}
 
@@ -121,9 +136,10 @@ func listFilesDropboxClient(client *http.Client, token string) {
 func downloadFileDropboxClient(client *http.Client, token string) {
 	listFilesDropboxClient(client, token)
 
-	fmt.Printf("Introduce el nombre del archivo a descargar: ")
+	fmt.Print("Introduce el nombre del archivo a descargar: ")
 	var filename string
 	fmt.Scanf("%s\n", &filename)
+	fmt.Print("\n")
 
 	url := "https://localhost:10443/dropbox/files/download?filename=" + filename
 	req, err := http.NewRequest("GET", url, nil)
@@ -142,7 +158,6 @@ func downloadFileDropboxClient(client *http.Client, token string) {
 	chk(err)
 
 	if downloadedFile.Downloaded == true {
-		fmt.Println("File name " + downloadedFile.Filename)
 		// Compare file checksum
 		checksumFile := sha256.Sum256(downloadedFile.Content)
 		slice := checksumFile[:]
@@ -152,7 +167,7 @@ func downloadFileDropboxClient(client *http.Client, token string) {
 			// Save file
 			err = ioutil.WriteFile("./downloads/"+downloadedFile.Filename, downloadedFile.Content, 0644)
 			chk(err)
-			fmt.Println("Fichero descargado correctamente en el directorio 'downloads'")
+			fmt.Println("Fichero descargado correctamente en el directorio 'downloads' \n\n")
 
 		} else {
 			// Corrupted file
@@ -160,7 +175,7 @@ func downloadFileDropboxClient(client *http.Client, token string) {
 		}
 	} else {
 		// Error downloading file
-		fmt.Println("¡Error al descargar el fichero!")
+		fmt.Println("¡Error al descargar el fichero!\n\n")
 	}
 }
 

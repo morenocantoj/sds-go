@@ -177,6 +177,7 @@ func client() {
 				case "3":
 					deleteFile(client)
 				case "4":
+					fmt.Print("\n")
 					dropboxClient(client)
 				default:
 					fmt.Println("Opción incorrecta!")
