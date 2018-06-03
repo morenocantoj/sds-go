@@ -118,9 +118,58 @@ type twoFactorStruct struct {
 	Token string
 }
 
+type respCreateDropboxFolder struct {
+	Created bool
+	Msg     string
+}
+
+type DropboxDownloadStruct struct {
+	Name            string `json:"name"`
+	Path_lower      string `json:"path_lower"`
+	Path_display    string `json:"path_display"`
+	Id              string `json:"id"`
+	Client_modified string `json:"client_modified"`
+	Server_modified string `json:"server_modified"`
+	Rev             string `json:"rev"`
+	Size            int    `json:"size"`
+	Content_hash    string `json:"content_hash"`
+}
+
+type DropboxDownloadResponse struct {
+	Downloaded bool
+	Content    []byte
+	Filename   string
+	Checksum   string
+}
 type fileEnumStruct struct {
 	Id       string
 	Filename string
 }
 
+type fileEnumDropboxStruct struct {
+	Tag             string      `json:".tag"`
+	Name            string      `json:"name"`
+	Id              string      `json:"id"`
+	Client_modified string      `json:"client_modified"`
+	Server_modified string      `json:"server_modified"`
+	Rev             string      `json:"rev"`
+	Size            int         `json:"size"`
+	Path_lower      string      `json:"path_lower"`
+	Path_display    string      `json:"path_display"`
+	Sharing_info    interface{} `json:"sharing_info"`
+	Property_groups interface{} `json:"property_groups"`
+	Shared          bool        `json:"has_explicit_shared_members"`
+	Content_hash    string      `json:"content_hash"`
+}
+
+type uploadFileDropboxStruct struct {
+	Uploaded bool
+	Msg      string
+}
+
 type fileList []fileEnumStruct
+type fileListDropbox struct {
+	Entries  []fileEnumDropboxStruct `json:"entries"`
+	Cursor   string                  `json:"cursor"`
+	Has_more bool                    `json:"has_more"`
+}
