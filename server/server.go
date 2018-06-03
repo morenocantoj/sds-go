@@ -9,7 +9,6 @@ import (
 	"encoding/base32"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -426,31 +425,6 @@ func checkTwoFaEnabled(username string) bool {
 
 }
 
-func getUserSecretKey(username string) (string, error) {
-	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
-	chk(err)
-	loginfo("getUserSecretKey", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
-
-	var sqlResponse sql.NullString
-	row := db.QueryRow("SELECT secret_key FROM users WHERE email = ?", username)
-	err = row.Scan(&sqlResponse)
-	if err == sql.ErrNoRows {
-		return "", nil
-	}
-	chk(err)
-	loginfo("getUserSecretKey", "Obteniendo la clave secreta del usuario para cifrar archivos", "db.QueryRow", "trace", nil)
-
-	if sqlResponse.Valid {
-		var userSecret = sqlResponse.String
-		return userSecret, nil
-	} else {
-		return "", errors.New("SQL Response: response is not valid")
-	}
-
-	defer db.Close()
-	return "", errors.New("SQL Error: something has gone wrong")
-}
-
 func login(w http.ResponseWriter, req *http.Request) {
 	username := req.Form.Get("username")
 	password := req.Form.Get("password")
@@ -460,7 +434,7 @@ func login(w http.ResponseWriter, req *http.Request) {
 		loginfo("login", "Usuario "+username+" autenticado en el sistema", "handler", "info", nil)
 		token := CreateTokenEndpoint(username, password)
 		twoFa := checkTwoFaEnabled(username)
-		secret, err := getUserSecretKey(username)
+		secret, err := getUserSecretKeyByUsername(username)
 		chk(err)
 
 		responseLogin(w, true, twoFa, "Usuario "+username+" autenticado en el sistema", token, secret)
@@ -475,8 +449,10 @@ func doubleLogin(w http.ResponseWriter, req *http.Request) {
 	tokenString := req.Form.Get("token")
 	tokenResult, correct := VerifyOtpEndpoint(tokenString, otpToken)
 	// TODO: enviar secretKey. New function getUserSecretKeyById() + obtener userId a partir del token
-	// secretKey := getUserSecretKey()
-	responseLogin(w, correct, true, "Autenticación en el sistema (2FA)", tokenResult, "")
+	userId := getUserIdFromToken(tokenResult)
+	secretKey, err := getUserSecretKeyById(userId)
+	chk(err)
+	responseLogin(w, correct, true, "Autenticación en el sistema (2FA)", tokenResult, secretKey)
 }
 
 func register(w http.ResponseWriter, req *http.Request) {
@@ -490,29 +466,6 @@ func register(w http.ResponseWriter, req *http.Request) {
 		loginfo("register", "Error al registrar el usuario "+username, "handler", "warning", nil)
 		response(w, false, "Error al registrar el usuario "+username)
 	}
-}
-
-func getUserIdFromToken(token string) int {
-	decodedToken, err := VerifyJwt(token, jwtSecret)
-	username := decodedToken["username"]
-
-	// Open database
-	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
-	chk(err)
-
-	// Check if email is already in database
-	var userIdString []byte
-
-	row := db.QueryRow("SELECT id FROM users WHERE email = ?", username)
-	err = row.Scan(&userIdString)
-	chk(err)
-
-	defer db.Close()
-
-	userId, err := strconv.Atoi(string(userIdString))
-	chk(err)
-
-	return userId
 }
 
 /**

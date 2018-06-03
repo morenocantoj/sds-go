@@ -374,34 +374,6 @@ func getPackage(package_id int) (packageFile, error) {
 	return filePackage, errors.New("SQL Error: something has gone wrong")
 }
 
-// FIXME: move to db_auth.go
-func getUserSecretKeyById(userId int) (string, error) {
-	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
-	chk(err)
-	loginfo("getUserSecretKeyById", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
-
-	var sqlResponse sql.NullString
-	row := db.QueryRow("SELECT secret_key FROM users WHERE id = ?", userId)
-	err = row.Scan(&sqlResponse)
-	if err == sql.ErrNoRows {
-		return "", nil
-	}
-	chk(err)
-	loginfo("getUserSecretKeyById", "Obteniendo la clave secreta del usuario para cifrar archivos", "db.QueryRow", "trace", nil)
-
-	if sqlResponse.Valid {
-
-		var secretKey = sqlResponse.String
-		return secretKey, nil
-
-	} else {
-		return "", errors.New("SQL Response: response is not valid")
-	}
-
-	defer db.Close()
-	return "", errors.New("SQL Error: something has gone wrong")
-}
-
 func checkUserFileBelongsToUser(user_id int, user_file_id int) (bool, error) {
 	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
 	chk(err)
