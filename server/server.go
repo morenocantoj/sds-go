@@ -241,7 +241,8 @@ func downloadFileDropbox(w http.ResponseWriter, req *http.Request) {
 
 	dropboxHeader := `{"path": "` + fullPath + `"}`
 
-	req, _ = http.NewRequest("POST", "https://content.dropboxapi.com/2/files/download", nil)
+	req, err = http.NewRequest("POST", "https://content.dropboxapi.com/2/files/download", nil)
+	chk(err)
 	req.Header.Set("Content-Type", "text/plain")
 	req.Header.Set("Authorization", "Bearer "+DROPBOX_TOKEN)
 	req.Header.Set("Dropbox-API-Arg", dropboxHeader)
@@ -273,6 +274,32 @@ func downloadFileDropbox(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+func listFilesDropbox(w http.ResponseWriter, req *http.Request) {
+	bearerToken, err := GetBearerToken(req.Header.Get("Authorization"))
+	chk(err)
+	folderId := strconv.Itoa(getUserIdFromToken(bearerToken))
+	loginfo("listFilesDropbox", "Usuario "+folderId+" intenta listar sus archivos", "Dropbox API", "info", nil)
+
+	// Make dropbox Request
+	clientDropbox := &http.Client{}
+
+	var jsonStr = []byte(`{
+		"path": "/` + folderId + `",
+		"recursive": false,
+		"include_media_info": false,
+    "include_deleted": false,
+    "include_has_explicit_shared_members": false,
+    "include_mounted_folders": true
+		}`)
+
+	body := bytes.NewBuffer(jsonStr)
+
+	req, _ = http.NewRequest("POST", "https://api.dropboxapi.com/2/files/list_folder", body)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+DROPBOX_TOKEN)
+
+}
+
 // gestiona el modo servidor
 func server() {
 	// suscripción SIGINT
@@ -284,6 +311,7 @@ func server() {
 	mux.HandleFunc("/files/upload", validateMiddleware(handlerFileUpload))
 	mux.HandleFunc("/dropbox/create/folder", validateMiddleware(createDropboxFolder))
 	mux.HandleFunc("/dropbox/files/download", validateMiddleware(downloadFileDropbox))
+	mux.HandleFunc("/dropbox/files", validateMiddleware(listFilesDropbox))
 
 	srv := &http.Server{Addr: ":10443", Handler: mux}
 

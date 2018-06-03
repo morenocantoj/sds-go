@@ -73,7 +73,7 @@ func menu() string {
 	fmt.Println("0- VER LISTADO DE FICHEROS")
 	fmt.Println("1- SUBIR FICHERO")
 	fmt.Println("2- DESCARGAR FICHERO")
-	fmt.Println("3- DROPBOX")
+	fmt.Println("4- DROPBOX")
 	fmt.Println("Q- SALIR")
 	fmt.Print("Opción: ")
 	var input string
@@ -301,7 +301,7 @@ func client() {
 				case "2":
 					//TODO: Implement download menu
 					downloadFile()
-				case "3":
+				case "4":
 					dropboxClient(client)
 				default:
 					fmt.Println("Opción incorrecta!")

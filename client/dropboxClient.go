@@ -14,7 +14,7 @@ func dropboxClient(client *http.Client) {
 	for optMenu != "Q" {
 		switch optMenu {
 		case "0":
-			//TODO: Implement list files menu
+			listFilesDropboxClient(client, tokenSesion)
 		case "1":
 			//TODO: Implement upload menu
 		case "2":
@@ -26,6 +26,20 @@ func dropboxClient(client *http.Client) {
 		}
 		optMenu = dropboxMenu()
 	}
+}
+
+func listFilesDropboxClient(client *http.Client, token string) {
+	url := "https://localhost:10443/dropbox/files"
+	req, err := http.NewRequest("GET", url, nil)
+	chk(err)
+
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := client.Do(req)
+	chk(err)
+
+	_, err = ioutil.ReadAll(resp.Body)
+	chk(err)
 }
 
 func downloadFileDropboxClient(client *http.Client, token string) {
