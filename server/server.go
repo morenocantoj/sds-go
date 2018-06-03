@@ -103,6 +103,13 @@ func responseListFilesDropbox(w io.Writer, fileList fileListDropbox) {
 	w.Write(rJSON)
 }
 
+func responseUploadFileDropbox(w io.Writer, uploaded bool, msg string) {
+	r := uploadFileDropboxStruct{Uploaded: uploaded, Msg: msg}
+	rJSON, err := json.Marshal(&r)
+	chk(err)
+	w.Write(rJSON)
+}
+
 func GetBearerToken(header string) (string, error) {
 	if header == "" {
 		return "", fmt.Errorf("An authorization header is required")
@@ -274,6 +281,7 @@ func server() {
 	mux.HandleFunc("/dropbox/create/folder", validateMiddleware(createDropboxFolder))
 	mux.HandleFunc("/dropbox/files/download", validateMiddleware(downloadFileDropbox))
 	mux.HandleFunc("/dropbox/files", validateMiddleware(listFilesDropbox))
+	mux.HandleFunc("/dropbox/files/upload", validateMiddleware(uploadFileDropbox))
 	mux.HandleFunc("/files", validateMiddleware(handlerFileList))
 	mux.HandleFunc("/files/checkPackage", validateMiddleware(handlerPackageCheck))
 	mux.HandleFunc("/files/uploadPackage", validateMiddleware(handlerPackageUpload))

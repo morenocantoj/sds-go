@@ -162,6 +162,11 @@ type fileEnumDropboxStruct struct {
 	Content_hash    string      `json:"content_hash"`
 }
 
+type uploadFileDropboxStruct struct {
+	Uploaded bool
+	Msg      string
+}
+
 type fileList []fileEnumStruct
 type fileListDropbox struct {
 	Entries  []fileEnumDropboxStruct `json:"entries"`

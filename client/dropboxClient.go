@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"mime/multipart"
 	"net/http"
 )
 
@@ -16,7 +19,7 @@ func dropboxClient(client *http.Client) {
 		case "0":
 			listFilesDropboxClient(client, tokenSesion)
 		case "1":
-			//TODO: Implement upload menu
+			uploadFileDropboxClient(client, tokenSesion)
 		case "2":
 			downloadFileDropboxClient(client, tokenSesion)
 		case "3":
@@ -26,6 +29,59 @@ func dropboxClient(client *http.Client) {
 		}
 		optMenu = dropboxMenu()
 	}
+}
+
+func uploadFileDropboxClient(client *http.Client, token string) {
+	var filename string
+	fmt.Printf("Introduce el archivo a subir (P.ej.: /Users/username/Desktop/file.txt). El fichero debe ser menor de 150MB: ")
+	fmt.Scanf("%s\n", &filename)
+
+	fileData, err := ioutil.ReadFile(filename)
+	if err != nil {
+		fmt.Printf("ERROR!! No se encuentra el archivo introducido\n\n")
+		return
+	}
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	reader := bytes.NewReader(fileData)
+	part, err := writer.CreateFormFile("file", filename)
+	chk(err)
+
+	_, err = io.Copy(part, reader)
+	chk(err)
+
+	// File checksum
+	checksumFile := sha256.Sum256(fileData)
+	slice := checksumFile[:]
+	checksumString := encode64(slice)
+
+	params := map[string]string{
+		"filename": filename,
+		"checksum": checksumString,
+	}
+
+	for key, val := range params {
+		_ = writer.WriteField(key, val)
+	}
+	err = writer.Close()
+	chk(err)
+
+	url := "https://localhost:10443/dropbox/files/upload"
+	req, err := http.NewRequest("POST", url, body)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	resp, err := client.Do(req)
+	chk(err)
+
+	// Get body response
+	b, _ := ioutil.ReadAll(resp.Body)
+	var uploadResponse uploadFileDropbox
+	err = json.Unmarshal(b, &uploadResponse)
+
+	fmt.Println(uploadResponse.Msg)
 }
 
 func listFilesDropboxClient(client *http.Client, token string) {
