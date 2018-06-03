@@ -211,7 +211,7 @@ func dropboxMenu() string {
 	fmt.Println("1- SUBIR FICHERO A DROPBOX")
 	fmt.Println("2- DESCARGAR FICHERO DE DROPBOX")
 	fmt.Println("3- CREAR CARPETA PERSONAL DE DROPBOX")
-	fmt.Println("Q- SALIR")
+	fmt.Println("Q- VOLVER")
 	fmt.Print("Opción: ")
 	var input string
 	fmt.Scanf("%s\n", &input)
