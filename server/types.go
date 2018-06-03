@@ -8,14 +8,17 @@ type user_file struct {
 }
 
 type file struct {
+	id           int
 	user_file_id int
 	packages_num int
 	checksum     string
 	version      int
 	size         int
+	timestamp    string
 }
 
 type file_package struct {
+	id            int
 	file_id       int
 	package_id    int
 	package_index int

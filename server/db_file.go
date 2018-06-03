@@ -330,27 +330,23 @@ func getUserFileName(user_file_id int) (string, error) {
 	return "", errors.New("SQL Error: something has gone wrong")
 }
 
-func getFilePackages(file_id int) (map[int]int, error) {
+func getFilePackages(file_id int) ([]file_package, error) {
 	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
 	chk(err)
 	loginfo("getFilePackages", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
 
-	rows, err := db.Query("SELECT package_id, package_index FROM file_packages WHERE file_id = ?", file_id)
+	rows, err := db.Query("SELECT * FROM file_packages WHERE file_id = ?", file_id)
 	chk(err)
 	loginfo("getFilePackages", "Obteniendo los paquetes de un archivo de un usuario", "db.QueryRow", "trace", nil)
 	defer rows.Close()
 
-	packages := make(map[int]int)
+	var packages []file_package
 
 	for rows.Next() {
-		var (
-			package_id    int
-			package_index int
-		)
-		if err := rows.Scan(&package_id, &package_index); err != nil {
-			return nil, err
-		}
-		packages[package_index] = package_id
+		var filePackage file_package
+		err := rows.Scan(&filePackage.id, &filePackage.file_id, &filePackage.package_id, &filePackage.package_index)
+		chk(err)
+		packages = append(packages, filePackage)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -381,6 +377,7 @@ func getPackageUuid(package_id int) (string, int, error) {
 	return "", -1, errors.New("SQL Error: something has gone wrong")
 }
 
+// FIXME: move to db_auth.go
 func getUserSecretKeyById(userId int) (string, error) {
 	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
 	chk(err)
@@ -408,32 +405,152 @@ func getUserSecretKeyById(userId int) (string, error) {
 	return "", errors.New("SQL Error: something has gone wrong")
 }
 
-func getAllFileVersions(user_file_id int) (int, error) {
-	// TODO: implement!
-	// db, err := sql.Open("mysql", DATA_SOURCE_NAME)
-	// chk(err)
-	// loginfo("getFilePackages", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
-	//
-	// rows, err := db.Query("SELECT package_id, package_index FROM file_packages WHERE file_id = ?", file_id)
-	// chk(err)
-	// loginfo("getFilePackages", "Obteniendo los paquetes de un archivo de un usuario", "db.QueryRow", "trace", nil)
-	// defer rows.Close()
-	//
-	// packages := make(map[int]int)
-	//
-	// for rows.Next() {
-	// 	var (
-	// 		package_id    int
-	// 		package_index int
-	// 	)
-	// 	if err := rows.Scan(&package_id, &package_index); err != nil {
-	// 		return nil, err
-	// 	}
-	// 	packages[package_index] = package_id
-	// }
-	// if err := rows.Err(); err != nil {
-	// 	return nil, err
-	// }
-	// return packages, nil
-	return -1, nil
+func checkUserFileBelongsToUser(user_id int, user_file_id int) (bool, error) {
+	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
+	chk(err)
+	loginfo("checkUserFileBelongsToUser", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
+
+	var sqlResponse sql.NullString
+	row := db.QueryRow("SELECT userId FROM user_files WHERE id = ?", user_file_id)
+	err = row.Scan(&sqlResponse)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	chk(err)
+	loginfo("checkUserFileBelongsToUser", "Comprobado si el archivo pertence al usuario", "db.QueryRow", "trace", nil)
+
+	if sqlResponse.Valid {
+
+		var fileOwnerIdInString = sqlResponse.String
+		fileOwnerId, err := strconv.Atoi(fileOwnerIdInString)
+		chk(err)
+
+		if fileOwnerId == user_id {
+			return true, nil
+		} else {
+			return false, nil
+		}
+
+	} else {
+		return false, errors.New("SQL Response: response is not valid")
+	}
+
+	defer db.Close()
+	return false, errors.New("SQL Error: something has gone wrong")
+}
+
+func getAllFileVersions(user_file_id int) ([]file, error) {
+	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
+	chk(err)
+	loginfo("getAllFileVersions", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
+
+	rows, err := db.Query("SELECT * FROM files WHERE user_file_id = ?", user_file_id)
+	chk(err)
+	loginfo("getAllFileVersions", "Obteniendo todas las versiones un archivo de un usuario", "db.QueryRow", "trace", nil)
+	defer rows.Close()
+
+	var fileVersions []file
+
+	for rows.Next() {
+		var version file
+		err := rows.Scan(&version.id, &version.user_file_id, &version.packages_num, &version.checksum, &version.version, &version.size, &version.timestamp)
+		chk(err)
+		fileVersions = append(fileVersions, version)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return fileVersions, nil
+}
+
+func getOtherFilesUsingPackage(package_id int, file_id int) ([]file_package, error) {
+	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
+	chk(err)
+	loginfo("getOtherFilesUsingPackage", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
+
+	rows, err := db.Query("SELECT * FROM file_packages WHERE package_id = ? AND file_id <> ?", package_id, file_id)
+	chk(err)
+	loginfo("getOtherFilesUsingPackage", "Obteniendo los paquetes de un archivo de un usuario", "db.QueryRow", "trace", nil)
+	defer rows.Close()
+
+	var packages []file_package
+
+	for rows.Next() {
+		var filePackage file_package
+		err := rows.Scan(&filePackage.id, &filePackage.file_id, &filePackage.package_id, &filePackage.package_index)
+		chk(err)
+		packages = append(packages, filePackage)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return packages, nil
+}
+
+func deletePackageInDatabase(package_id int) (bool, error) {
+	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
+	chk(err)
+	loginfo("deletePackage", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
+
+	res, err := db.Exec("DELETE FROM packages WHERE id = ?", package_id)
+	chk(err)
+	loginfo("deletePackage", "Borrando un paquete de BD", "db.QueryRow", "trace", nil)
+
+	_, err = res.RowsAffected()
+	chk(err)
+	return true, nil
+
+	defer db.Close()
+	return false, errors.New("SQL Error: something has gone wrong")
+}
+
+func deleteFilePackages(file_id int) (bool, error) {
+	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
+	chk(err)
+	loginfo("deleteFilePackages", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
+
+	res, err := db.Exec("DELETE FROM file_packages WHERE file_id = ?", file_id)
+	chk(err)
+	loginfo("deleteFilePackages", "Borrando la relación de un archivo con sus paquetes", "db.QueryRow", "trace", nil)
+
+	_, err = res.RowsAffected()
+	chk(err)
+	return true, nil
+
+	defer db.Close()
+	return false, errors.New("SQL Error: something has gone wrong")
+}
+
+func deleteFile(file_id int) (bool, error) {
+	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
+	chk(err)
+	loginfo("deleteFile", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
+
+	res, err := db.Exec("DELETE FROM files WHERE id = ?", file_id)
+	chk(err)
+	loginfo("deleteFile", "Borrando un archivo de BD", "db.QueryRow", "trace", nil)
+
+	_, err = res.RowsAffected()
+	chk(err)
+	return true, nil
+
+	defer db.Close()
+	return false, errors.New("SQL Error: something has gone wrong")
+}
+
+func deleteUserFile(user_file_id int) (bool, error) {
+	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
+	chk(err)
+	loginfo("deleteUserFile", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
+
+	res, err := db.Exec("DELETE FROM user_files WHERE id = ?", user_file_id)
+	chk(err)
+	loginfo("deleteUserFile", "Borrando la relación de un archivo con un usuario", "db.QueryRow", "trace", nil)
+
+	_, err = res.RowsAffected()
+	chk(err)
+	return true, nil
+
+	defer db.Close()
+	return false, errors.New("SQL Error: something has gone wrong")
 }

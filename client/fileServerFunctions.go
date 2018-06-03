@@ -44,7 +44,7 @@ func listFiles(client *http.Client) {
 		}
 		fmt.Printf("\n\n")
 	} else {
-		fmt.Println("¡No tienes ficheros subidos en la plataforma!")
+		fmt.Println("\n¡No tienes ficheros subidos en la plataforma!\n\n")
 	}
 }
 

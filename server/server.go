@@ -314,10 +314,8 @@ func doubleLogin(w http.ResponseWriter, req *http.Request) {
 	otpToken := req.Form.Get("otpToken")
 	tokenString := req.Form.Get("token")
 	tokenResult, correct := VerifyOtpEndpoint(tokenString, otpToken)
-	// TODO: enviar secretKey
+	// TODO: enviar secretKey. New function getUserSecretKeyById() + obtener userId a partir del token
 	// secretKey := getUserSecretKey()
-	fmt.Println(tokenResult)
-	fmt.Println(correct)
 	responseLogin(w, correct, true, "Autenticación en el sistema (2FA)", tokenResult, "")
 }
 
