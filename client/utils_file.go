@@ -5,6 +5,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -78,6 +79,15 @@ func filePartUpload(client *http.Client, uri string, params map[string]string, p
 
 	var data checkFileStruct
 	json.Unmarshal(bodyResponse, &data)
+
+	// Verify token
+	var tokenValid tokenValid
+	_ = json.Unmarshal(bodyResponse, &tokenValid)
+	if !checkTokenAuth(tokenValid) {
+		fmt.Println("Sesión caducada! Loguéate de nuevo para continuar!")
+		return -1, errors.New("Sesión caducada! Loguéate de nuevo para continuar!")
+	}
+
 	fmt.Printf("%v\n", data.Msg)
 	return data.Id, err
 }
@@ -108,6 +118,15 @@ func checkPackageExists(client *http.Client, uri string, checksum string) (bool,
 	var checkResponse checkFileStruct
 	err = json.Unmarshal(bodyResponse, &checkResponse)
 	chk(err)
+
+	// Verify token
+	var tokenValid tokenValid
+	_ = json.Unmarshal(bodyResponse, &tokenValid)
+	if !checkTokenAuth(tokenValid) {
+		fmt.Println("Sesión caducada! Loguéate de nuevo para continuar!")
+		return false, -1, errors.New("Sesión caducada! Loguéate de nuevo para continuar!")
+	}
+
 	defer r.Body.Close()
 
 	return checkResponse.Ok, checkResponse.Id, err
@@ -143,6 +162,15 @@ func saveFileInfo(client *http.Client, uri string, fileinfo fileInfoStruct) (boo
 	var saveFileResponse saveFileStruct
 	err = json.Unmarshal(bodyResponse, &saveFileResponse)
 	chk(err)
+
+	// Verify token
+	var tokenValid tokenValid
+	_ = json.Unmarshal(bodyResponse, &tokenValid)
+	if !checkTokenAuth(tokenValid) {
+		fmt.Println("Sesión caducada! Loguéate de nuevo para continuar!")
+		return false, errors.New("Sesión caducada! Loguéate de nuevo para continuar!")
+	}
+
 	fmt.Printf("%v\n\n", saveFileResponse.Msg)
 	defer r.Body.Close()
 

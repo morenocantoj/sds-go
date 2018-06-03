@@ -33,6 +33,14 @@ func listFiles(client *http.Client) {
 
 	json.Unmarshal(body, &fileList)
 
+	// Verify token
+	var tokenValid tokenValid
+	_ = json.Unmarshal(body, &tokenValid)
+	if !checkTokenAuth(tokenValid) {
+		fmt.Println("Sesión caducada! Loguéate de nuevo para continuar!")
+		return
+	}
+
 	// Check if we have files
 	if len(fileList) > 0 {
 		fmt.Println("\n Estos son los ficheros disponibles:\n")
@@ -146,6 +154,14 @@ func downloadFile(client *http.Client) {
 	var downloadFile downloadFileStruct
 	json.Unmarshal(bodyResponse, &downloadFile)
 
+	// Verify token
+	var tokenValid tokenValid
+	_ = json.Unmarshal(bodyResponse, &tokenValid)
+	if !checkTokenAuth(tokenValid) {
+		fmt.Println("Sesión caducada! Loguéate de nuevo para continuar!")
+		return
+	}
+
 	if downloadFile.Ok == true {
 		// decypher file
 		key, err := base32.StdEncoding.DecodeString(userSecretKey)
@@ -176,6 +192,14 @@ func deleteFile(client *http.Client) {
 	resp.Body.Close()
 	var deleteFile deleteFileStruct
 	json.Unmarshal(bodyResponse, &deleteFile)
+
+	// Verify token
+	var tokenValid tokenValid
+	_ = json.Unmarshal(bodyResponse, &tokenValid)
+	if !checkTokenAuth(tokenValid) {
+		fmt.Println("Sesión caducada! Loguéate de nuevo para continuar!")
+		return
+	}
 
 	fmt.Println(deleteFile.Msg + "\n")
 }

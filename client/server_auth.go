@@ -24,6 +24,10 @@ func decode64(s string) []byte {
 	return b                                     // devolvemos los datos originales
 }
 
+func checkTokenAuth(tokenVar tokenValid) bool {
+	return tokenVar.Code != 401
+}
+
 func register() (string, string) {
 	var username string
 	var password []byte
@@ -115,8 +119,4 @@ func loginTwoAuth(client *http.Client, tokenSesion string) bool {
 	}
 
 	return false
-}
-
-func checkTokenAuth(tokenVar tokenValid) bool {
-	return tokenVar.Code != 401
 }
