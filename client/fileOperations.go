@@ -2,19 +2,73 @@ package main
 
 import (
 	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
+	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"mime/multipart"
 	"net/http"
-	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 )
+
+type fileInfoStruct struct {
+	filename   string
+	extension  string
+	packageIds []string
+	checksum   string
+	size       int64
+}
 
 type fileStruct struct {
 	name      string
 	extension string
 	filepath  string
 	content   []byte
+}
+
+type checkFileStruct struct {
+	Ok  bool
+	Id  int
+	Msg string
+}
+
+type saveFileStruct struct {
+	Ok  bool
+	Msg string
+}
+
+type downloadFileStruct struct {
+	Ok           bool
+	Msg          string
+	FileChecksum string
+	FileContent  []byte
+	FileName     string
+}
+
+const MAX_PACKAGE_SIZE = 4 * 1000 * 1000 // 4MB
+
+// función para cifrar (con AES en este caso), adjunta el IV al principio
+func encrypt(data, key []byte) (out []byte) {
+	out = make([]byte, len(data)+16)    // reservamos espacio para el IV al principio
+	blk, err := aes.NewCipher(key)      // cifrador en bloque (AES), usa key
+	chk(err)                            // comprobamos el error
+	ctr := cipher.NewCTR(blk, out[:16]) // cifrador en flujo: modo CTR, usa IV
+	ctr.XORKeyStream(out[16:], data)    // ciframos los datos
+	return
+}
+
+// función para descifrar (con AES en este caso)
+func decrypt(data, key []byte) (out []byte) {
+	out = make([]byte, len(data)-16)     // la salida no va a tener el IV
+	blk, err := aes.NewCipher(key)       // cifrador en bloque (AES), usa key
+	chk(err)                             // comprobamos el error
+	ctr := cipher.NewCTR(blk, data[:16]) // cifrador en flujo: modo CTR, usa IV
+	ctr.XORKeyStream(out, data[16:])     // desciframos (doble cifrado) los datos
+	return
 }
 
 func readFile(inputFile string) (fileStruct, error) {
@@ -45,35 +99,116 @@ func readFile(inputFile string) (fileStruct, error) {
 	data.extension = extension
 	data.filepath = fileAbsPath
 	data.content = file
+
 	return data, err
 }
 
-// Creates a new file upload http request with optional extra params
-func newfileUploadRequest(uri string, params map[string]string, paramName, path string) (*http.Request, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
+func saveFile(fileContent []byte, filename string) {
+	// TODO: Check if files folder exists (if not create it)
+	var dst = "./downloads/" + filename
 
+	err := ioutil.WriteFile(dst, fileContent, 0666)
+	chk(err)
+}
+
+func filePartUpload(client *http.Client, uri string, params map[string]string, paramName string, partFile []byte, partIndex int) (int, error) {
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
-	part, err := writer.CreateFormFile(paramName, filepath.Base(path))
-	if err != nil {
-		return nil, err
-	}
-	_, err = io.Copy(part, file)
+
+	reader := bytes.NewReader(partFile)
+
+	part, err := writer.CreateFormFile(paramName, strconv.Itoa(partIndex))
+	chk(err)
+
+	_, err = io.Copy(part, reader)
+	chk(err)
 
 	for key, val := range params {
 		_ = writer.WriteField(key, val)
 	}
 	err = writer.Close()
-	if err != nil {
-		return nil, err
-	}
+	chk(err)
 
 	req, err := http.NewRequest("POST", uri, body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	req.Header.Set("Authorization", "Bearer "+tokenSesion)
-	return req, err
+
+	resp, err := client.Do(req)
+	chk(err)
+
+	bodyResponse, err := ioutil.ReadAll(resp.Body)
+	chk(err)
+	resp.Body.Close()
+
+	var data checkFileStruct
+	json.Unmarshal(bodyResponse, &data)
+	fmt.Printf("%v\n", data.Msg)
+	return data.Id, err
+}
+
+func checkPackageExists(client *http.Client, uri string, checksum string) (bool, int, error) {
+	params := map[string]string{
+		"checksum": checksum,
+	}
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	for key, val := range params {
+		_ = writer.WriteField(key, val)
+	}
+	err := writer.Close()
+
+	req, err := http.NewRequest("POST", uri, body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+tokenSesion)
+
+	r, err := client.Do(req)
+	chk(err)
+
+	bodyResponse, err := ioutil.ReadAll(r.Body)
+	chk(err)
+
+	var checkResponse checkFileStruct
+	err = json.Unmarshal(bodyResponse, &checkResponse)
+	chk(err)
+	defer r.Body.Close()
+
+	return checkResponse.Ok, checkResponse.Id, err
+}
+
+func saveFileInfo(client *http.Client, uri string, fileinfo fileInfoStruct) (bool, error) {
+	params := map[string]string{
+		"filename":   fileinfo.filename,
+		"extension":  fileinfo.extension,
+		"checksum":   fileinfo.checksum,
+		"size":       strconv.Itoa(int(fileinfo.size)),
+		"packageIds": strings.Join(fileinfo.packageIds, ","),
+	}
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	for key, val := range params {
+		_ = writer.WriteField(key, val)
+	}
+	err := writer.Close()
+
+	req, err := http.NewRequest("POST", uri, body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+tokenSesion)
+
+	r, err := client.Do(req)
+	chk(err)
+
+	bodyResponse, err := ioutil.ReadAll(r.Body)
+	chk(err)
+
+	var saveFileResponse saveFileStruct
+	err = json.Unmarshal(bodyResponse, &saveFileResponse)
+	chk(err)
+	fmt.Printf("%v\n\n", saveFileResponse.Msg)
+	defer r.Body.Close()
+
+	return saveFileResponse.Ok, err
 }

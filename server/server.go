@@ -9,6 +9,7 @@ import (
 	"encoding/base32"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -45,10 +46,11 @@ type resp struct {
 }
 
 type respLogin struct {
-	Ok    bool   // true -> correcto, false -> error
-	TwoFa bool   // Two Factor enabled
-	Msg   string // mensaje adicional
-	Token string
+	Ok        bool   // true -> correcto, false -> error
+	TwoFa     bool   // Two Factor enabled
+	Msg       string // mensaje adicional
+	Token     string
+	SecretKey string
 }
 
 type respCreateDropboxFolder struct {
@@ -92,6 +94,12 @@ type DropboxDownloadResponse struct {
 	Filename   string
 	Checksum   string
 }
+type fileEnumStruct struct {
+	Id       string
+	Filename string
+}
+
+type fileList []fileEnumStruct
 
 func loginfo(title string, msg string, function string, level string, err error) {
 	switch level {
@@ -124,11 +132,19 @@ func response(w io.Writer, ok bool, msg string) {
 	w.Write(rJSON)                 // escribimos el JSON resultante
 }
 
-func responseLogin(w io.Writer, ok bool, twoFa bool, msg string, token string) {
-	r := respLogin{Ok: ok, TwoFa: twoFa, Msg: msg, Token: token} // formateamos respuesta
-	rJSON, err := json.Marshal(&r)                               // codificamos en JSON
-	chk(err)                                                     // comprobamos error
-	w.Write(rJSON)                                               // escribimos el JSON resultante
+func responseLogin(w io.Writer, ok bool, twoFa bool, msg string, token string, secret string) {
+	r := respLogin{Ok: ok, TwoFa: twoFa, Msg: msg, Token: token, SecretKey: secret} // formateamos respuesta
+	rJSON, err := json.Marshal(&r)                                                  // codificamos en JSON
+	chk(err)                                                                        // comprobamos error
+	w.Write(rJSON)                                                                  // escribimos el JSON resultante
+}
+
+func responseFilesList(w io.Writer, list fileList) {
+	fmt.Printf("Values %v \n", list)
+	rJSON, err := json.Marshal(&list) // codificamos en JSON
+	fmt.Printf("JSON: %s\n", rJSON)
+	chk(err) // comprobamos error
+	w.Write(rJSON)
 }
 
 func response2FA(w io.Writer, ok bool, token string) {
@@ -312,6 +328,11 @@ func server() {
 	mux.HandleFunc("/dropbox/create/folder", validateMiddleware(createDropboxFolder))
 	mux.HandleFunc("/dropbox/files/download", validateMiddleware(downloadFileDropbox))
 	mux.HandleFunc("/dropbox/files", validateMiddleware(listFilesDropbox))
+	mux.HandleFunc("/files", validateMiddleware(handlerFileList))
+	mux.HandleFunc("/files/checkPackage", validateMiddleware(handlerPackageCheck))
+	mux.HandleFunc("/files/uploadPackage", validateMiddleware(handlerPackageUpload))
+	mux.HandleFunc("/files/saveFile", validateMiddleware(handlerFileSave))
+	mux.HandleFunc("/files/download", validateMiddleware(handlerFileDownload))
 
 	srv := &http.Server{Addr: ":10443", Handler: mux}
 
@@ -413,7 +434,10 @@ func registerUser(username string, password string) bool {
 		// User doesnt exists
 		passwordSalted, err := bcrypt.GenerateFromPassword(decode64(password), bcrypt.DefaultCost)
 		chk(err)
-		result, err := db.Exec("INSERT INTO users (email, password) VALUES (?, ?)", username, encode64(passwordSalted))
+		// Create secret key for encription
+		secretKey := generateRandomKey32Bytes()
+
+		result, err := db.Exec("INSERT INTO users (email, password, secret_key) VALUES (?, ?, ?)", username, encode64(passwordSalted), secretKey)
 		chk(err)
 		idResult, err := result.LastInsertId()
 		loginfo("registerUser", "Insertado de cuenta y password en base de datos", "db.Exec", "trace", nil)
@@ -449,6 +473,31 @@ func checkTwoFaEnabled(username string) bool {
 
 }
 
+func getUserSecretKey(username string) (string, error) {
+	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
+	chk(err)
+	loginfo("getUserSecretKey", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
+
+	var sqlResponse sql.NullString
+	row := db.QueryRow("SELECT secret_key FROM users WHERE email = ?", username)
+	err = row.Scan(&sqlResponse)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	chk(err)
+	loginfo("getUserSecretKey", "Obteniendo la clave secreta del usuario para cifrar archivos", "db.QueryRow", "trace", nil)
+
+	if sqlResponse.Valid {
+		var userSecret = sqlResponse.String
+		return userSecret, nil
+	} else {
+		return "", errors.New("SQL Response: response is not valid")
+	}
+
+	defer db.Close()
+	return "", errors.New("SQL Error: something has gone wrong")
+}
+
 func login(w http.ResponseWriter, req *http.Request) {
 	username := req.Form.Get("username")
 	password := req.Form.Get("password")
@@ -458,11 +507,13 @@ func login(w http.ResponseWriter, req *http.Request) {
 		loginfo("login", "Usuario "+username+" autenticado en el sistema", "handler", "info", nil)
 		token := CreateTokenEndpoint(username, password)
 		twoFa := checkTwoFaEnabled(username)
+		secret, err := getUserSecretKey(username)
+		chk(err)
 
-		responseLogin(w, true, twoFa, "Usuario "+username+" autenticado en el sistema", token)
+		responseLogin(w, true, twoFa, "Usuario "+username+" autenticado en el sistema", token, secret)
 	} else {
 		loginfo("login", "Usuario "+username+" ha fallado al autenticarse en el sistema", "handler", "warning", nil)
-		responseLogin(w, false, false, "Usuario "+username+" autenticado en el sistema", "")
+		responseLogin(w, false, false, "Usuario "+username+" autenticado en el sistema", "", "")
 	}
 }
 
@@ -470,9 +521,11 @@ func doubleLogin(w http.ResponseWriter, req *http.Request) {
 	otpToken := req.Form.Get("otpToken")
 	tokenString := req.Form.Get("token")
 	tokenResult, correct := VerifyOtpEndpoint(tokenString, otpToken)
+	// TODO: enviar secretKey
+	// secretKey := getUserSecretKey()
 	fmt.Println(tokenResult)
 	fmt.Println(correct)
-	responseLogin(w, correct, true, "Autenticación en el sistema (2FA)", tokenResult)
+	responseLogin(w, correct, true, "Autenticación en el sistema (2FA)", tokenResult, "")
 }
 
 func register(w http.ResponseWriter, req *http.Request) {
@@ -607,6 +660,14 @@ func VerifyOtpEndpoint(tokenString string, otpToken string) (string, bool) {
 // Generates a 80 bit base32 encoded string
 func generateSecretEndpoint() string {
 	random := make([]byte, 10)
+	rand.Read(random)
+	secret := base32.StdEncoding.EncodeToString(random)
+	return secret
+}
+
+// Generates a 32 byte base32 encoded string for AES-256
+func generateRandomKey32Bytes() string {
+	random := make([]byte, 32)
 	rand.Read(random)
 	secret := base32.StdEncoding.EncodeToString(random)
 	return secret
