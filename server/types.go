@@ -178,3 +178,7 @@ type fileListDropbox struct {
 	Cursor   string                  `json:"cursor"`
 	Has_more bool                    `json:"has_more"`
 }
+
+type tokenResponse struct {
+	Code int
+}

@@ -123,21 +123,21 @@ func validateMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		bearerToken, err := GetBearerToken(req.Header.Get("Authorization"))
 		if err != nil {
 			loginfo("validateMiddleware", "Error al recuperar el token JWT", "GetBearerToken", "error", err)
-			json.NewEncoder(w).Encode(err)
+			json.NewEncoder(w).Encode(tokenResponse{Code: 401})
 			return
 		}
 
 		decodedToken, err := VerifyJwt(bearerToken, jwtSecret)
 		if err != nil {
 			loginfo("validateMiddleware", "Error al verificar el token JWT", "VerifyJwt", "error", err)
-			json.NewEncoder(w).Encode(err)
+			json.NewEncoder(w).Encode(tokenResponse{Code: 401})
 			return
 		}
 		if decodedToken["authorized"] == true {
 			loginfo("validateMiddleware", "Token de usuario válido", "VerifyJwt", "info", nil)
 			next(w, req)
 		} else {
-			json.NewEncoder(w).Encode("Token no válido! Inicia sesión de nuevo!")
+			json.NewEncoder(w).Encode(tokenResponse{Code: 401})
 		}
 	})
 }

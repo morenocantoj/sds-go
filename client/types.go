@@ -106,3 +106,7 @@ type uploadFileDropbox struct {
 	Uploaded bool
 	Msg      string
 }
+
+type tokenValid struct {
+	Code int
+}
