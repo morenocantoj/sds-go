@@ -15,42 +15,6 @@ import (
 	"strings"
 )
 
-type fileInfoStruct struct {
-	filename   string
-	extension  string
-	packageIds []string
-	checksum   string
-	size       int64
-}
-
-type fileStruct struct {
-	name      string
-	extension string
-	filepath  string
-	content   []byte
-}
-
-type checkFileStruct struct {
-	Ok  bool
-	Id  int
-	Msg string
-}
-
-type saveFileStruct struct {
-	Ok  bool
-	Msg string
-}
-
-type downloadFileStruct struct {
-	Ok           bool
-	Msg          string
-	FileChecksum string
-	FileContent  []byte
-	FileName     string
-}
-
-const MAX_PACKAGE_SIZE = 4 * 1000 * 1000 // 4MB
-
 // función para cifrar (con AES en este caso), adjunta el IV al principio
 func encrypt(data, key []byte) (out []byte) {
 	out = make([]byte, len(data)+16)    // reservamos espacio para el IV al principio

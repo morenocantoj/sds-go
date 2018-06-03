@@ -35,12 +35,14 @@ func listFiles(client *http.Client) {
 
 	// Check if we have files
 	if len(fileList) > 0 {
-		fmt.Println("Estos son los ficheros disponibles")
+		fmt.Println("\n Estos son los ficheros disponibles:\n")
+		fmt.Println("\t ID - Filename")
+		fmt.Println("\t-------------------------------------")
 
-		for i, file := range fileList {
-			fmt.Printf("%d- %s \n", i+1, file.Filename)
-			fmt.Println("---")
+		for _, file := range fileList {
+			fmt.Printf("\t  %s - %s \n", file.Id, file.Filename)
 		}
+		fmt.Printf("\n\n")
 	} else {
 		fmt.Println("¡No tienes ficheros subidos en la plataforma!")
 	}
@@ -127,7 +129,7 @@ func uploadFile(client *http.Client) {
 
 func downloadFile(client *http.Client) {
 	var fileId string
-	fmt.Printf("Introduce el id del fichero a descargar: ")
+	fmt.Printf("-> Introduce el ID del fichero a descargar: ")
 	fmt.Scanf("%s\n", &fileId)
 
 	fmt.Print("\nDescargando archivo... ")
@@ -139,17 +141,41 @@ func downloadFile(client *http.Client) {
 	resp, err := client.Do(req)
 	chk(err)
 
-	var downloadFile downloadFileStruct
 	bodyResponse, err := ioutil.ReadAll(resp.Body)
 	resp.Body.Close()
+	var downloadFile downloadFileStruct
 	json.Unmarshal(bodyResponse, &downloadFile)
 
-	// decypher file
-	key, err := base32.StdEncoding.DecodeString(userSecretKey)
-	chk(err)
-	fileContentDecrypted := decrypt(downloadFile.FileContent, key)
+	if downloadFile.Ok == true {
+		// decypher file
+		key, err := base32.StdEncoding.DecodeString(userSecretKey)
+		chk(err)
+		fileContentDecrypted := decrypt(downloadFile.FileContent, key)
 
-	saveFile(fileContentDecrypted, downloadFile.FileName)
+		saveFile(fileContentDecrypted, downloadFile.FileName)
+	}
 
 	fmt.Println(downloadFile.Msg + "\n")
+}
+
+func deleteFile(client *http.Client) {
+	var fileId string
+	fmt.Printf("-> Introduce el ID del fichero a borrar: ")
+	fmt.Scanf("%s\n", &fileId)
+
+	fmt.Print("\nBorrando archivo... ")
+
+	req, err := http.NewRequest("DELETE", "https://localhost:10443/files/delete?file="+fileId, nil)
+	chk(err)
+	req.Header.Set("Authorization", "Bearer "+tokenSesion)
+
+	resp, err := client.Do(req)
+	chk(err)
+
+	bodyResponse, err := ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
+	var deleteFile deleteFileStruct
+	json.Unmarshal(bodyResponse, &deleteFile)
+
+	fmt.Println(deleteFile.Msg + "\n")
 }

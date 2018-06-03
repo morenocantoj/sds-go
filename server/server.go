@@ -27,51 +27,6 @@ import (
 
 var jwtSecret = ""
 
-const DATA_SOURCE_NAME = "sds:sds@tcp(127.0.0.1:3307)/sds"
-
-type JwtToken struct {
-	Token string `json:"token"`
-}
-
-// respuesta del servidor
-type resp struct {
-	Ok  bool   // true -> correcto, false -> error
-	Msg string // mensaje adicional
-}
-
-type respLogin struct {
-	Ok        bool   // true -> correcto, false -> error
-	TwoFa     bool   // Two Factor enabled
-	Msg       string // mensaje adicional
-	Token     string
-	SecretKey string
-}
-
-type user struct {
-	username string
-	password string
-}
-
-type Exception struct {
-	Message string `json:"message"`
-}
-
-type OtpToken struct {
-	Token string
-}
-
-type twoFactorStruct struct {
-	Ok    bool
-	Token string
-}
-
-type fileEnumStruct struct {
-	Id       string
-	Filename string
-}
-
-type fileList []fileEnumStruct
-
 func loginfo(title string, msg string, function string, level string, err error) {
 	switch level {
 	case "trace":
@@ -170,6 +125,7 @@ func server() {
 	mux.HandleFunc("/files/uploadPackage", validateMiddleware(handlerPackageUpload))
 	mux.HandleFunc("/files/saveFile", validateMiddleware(handlerFileSave))
 	mux.HandleFunc("/files/download", validateMiddleware(handlerFileDownload))
+	mux.HandleFunc("/files/delete", validateMiddleware(handlerFileDelete))
 
 	srv := &http.Server{Addr: ":10443", Handler: mux}
 

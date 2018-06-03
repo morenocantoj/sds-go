@@ -6,32 +6,6 @@ import (
 	"strconv"
 )
 
-type user_file struct {
-	userId    int
-	filename  string
-	extension string
-}
-
-type file struct {
-	user_file_id int
-	packages_num int
-	checksum     string
-	version      int
-	size         int
-}
-
-type file_package struct {
-	file_id       int
-	package_id    int
-	package_index int
-}
-
-type packageFile struct {
-	uuid           string
-	checksum       string
-	upload_user_id int
-}
-
 func checkFileExistsForUser(userId int, filename string) (int, error) {
 	db, err := sql.Open("mysql", DATA_SOURCE_NAME)
 	chk(err)
@@ -432,4 +406,34 @@ func getUserSecretKeyById(userId int) (string, error) {
 
 	defer db.Close()
 	return "", errors.New("SQL Error: something has gone wrong")
+}
+
+func getAllFileVersions(user_file_id int) (int, error) {
+	// TODO: implement!
+	// db, err := sql.Open("mysql", DATA_SOURCE_NAME)
+	// chk(err)
+	// loginfo("getFilePackages", "Conexión a MySQL abierta", "sql.Open", "trace", nil)
+	//
+	// rows, err := db.Query("SELECT package_id, package_index FROM file_packages WHERE file_id = ?", file_id)
+	// chk(err)
+	// loginfo("getFilePackages", "Obteniendo los paquetes de un archivo de un usuario", "db.QueryRow", "trace", nil)
+	// defer rows.Close()
+	//
+	// packages := make(map[int]int)
+	//
+	// for rows.Next() {
+	// 	var (
+	// 		package_id    int
+	// 		package_index int
+	// 	)
+	// 	if err := rows.Scan(&package_id, &package_index); err != nil {
+	// 		return nil, err
+	// 	}
+	// 	packages[package_index] = package_id
+	// }
+	// if err := rows.Err(); err != nil {
+	// 	return nil, err
+	// }
+	// return packages, nil
+	return -1, nil
 }
