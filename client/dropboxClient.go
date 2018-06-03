@@ -38,12 +38,33 @@ func listFilesDropboxClient(client *http.Client, token string) {
 	resp, err := client.Do(req)
 	chk(err)
 
-	_, err = ioutil.ReadAll(resp.Body)
+	b, err := ioutil.ReadAll(resp.Body)
 	chk(err)
+
+	var filesDropbox fileListDropbox
+	err = json.Unmarshal(b, &filesDropbox)
+	if err != nil {
+		fmt.Println("¡Ha habido un error en la petición!")
+
+	} else {
+		// Check if we have files
+		if len(filesDropbox.Entries) > 0 {
+			fmt.Println("Estos son los ficheros disponibles en Dropbox")
+
+			for i, file := range filesDropbox.Entries {
+				fmt.Printf("%d- %s \n", i+1, file.Name)
+				fmt.Println("---")
+			}
+		} else {
+			fmt.Println("¡No tienes ficheros subidos en la plataforma!")
+		}
+	}
+
 }
 
 func downloadFileDropboxClient(client *http.Client, token string) {
-	// TODO: List files!
+	listFilesDropboxClient(client, token)
+
 	fmt.Printf("Introduce el nombre del archivo a descargar: ")
 	var filename string
 	fmt.Scanf("%s\n", &filename)

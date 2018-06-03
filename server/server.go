@@ -99,7 +99,28 @@ type fileEnumStruct struct {
 	Filename string
 }
 
+type fileEnumDropboxStruct struct {
+	Tag             string      `json:".tag"`
+	Name            string      `json:"name"`
+	Id              string      `json:"id"`
+	Client_modified string      `json:"client_modified"`
+	Server_modified string      `json:"server_modified"`
+	Rev             string      `json:"rev"`
+	Size            int         `json:"size"`
+	Path_lower      string      `json:"path_lower"`
+	Path_display    string      `json:"path_display"`
+	Sharing_info    interface{} `json:"sharing_info"`
+	Property_groups interface{} `json:"property_groups"`
+	Shared          bool        `json:"has_explicit_shared_members"`
+	Content_hash    string      `json:"content_hash"`
+}
+
 type fileList []fileEnumStruct
+type fileListDropbox struct {
+	Entries  []fileEnumDropboxStruct `json:"entries"`
+	Cursor   string                  `json:"cursor"`
+	Has_more bool                    `json:"has_more"`
+}
 
 func loginfo(title string, msg string, function string, level string, err error) {
 	switch level {
@@ -164,6 +185,12 @@ func responseCreateDropboxFolder(w io.Writer, created bool, msg string) {
 func responseDownloadDropboxfile(w io.Writer, downloaded bool, content []byte, filename string, checksum string) {
 	r := DropboxDownloadResponse{Downloaded: downloaded, Content: content, Filename: filename, Checksum: checksum}
 	rJSON, err := json.Marshal(&r)
+	chk(err)
+	w.Write(rJSON)
+}
+
+func responseListFilesDropbox(w io.Writer, fileList fileListDropbox) {
+	rJSON, err := json.Marshal(&fileList)
 	chk(err)
 	w.Write(rJSON)
 }
@@ -310,10 +337,22 @@ func listFilesDropbox(w http.ResponseWriter, req *http.Request) {
 
 	body := bytes.NewBuffer(jsonStr)
 
-	req, _ = http.NewRequest("POST", "https://api.dropboxapi.com/2/files/list_folder", body)
+	req, err = http.NewRequest("POST", "https://api.dropboxapi.com/2/files/list_folder", body)
+	chk(err)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+DROPBOX_TOKEN)
 
+	resp, err := clientDropbox.Do(req)
+	chk(err)
+
+	b, err := ioutil.ReadAll(resp.Body)
+	chk(err)
+
+	var filesDropbox fileListDropbox
+	err = json.Unmarshal(b, &filesDropbox)
+	chk(err)
+
+	responseListFilesDropbox(w, filesDropbox)
 }
 
 // gestiona el modo servidor
@@ -324,7 +363,6 @@ func server() {
 
 	mux := http.NewServeMux()
 	mux.Handle("/", http.HandlerFunc(handler))
-	mux.HandleFunc("/files/upload", validateMiddleware(handlerFileUpload))
 	mux.HandleFunc("/dropbox/create/folder", validateMiddleware(createDropboxFolder))
 	mux.HandleFunc("/dropbox/files/download", validateMiddleware(downloadFileDropbox))
 	mux.HandleFunc("/dropbox/files", validateMiddleware(listFilesDropbox))

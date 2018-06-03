@@ -63,6 +63,28 @@ type UserFile struct {
 	Filename string
 }
 
+type fileEnumDropboxStruct struct {
+	Tag             string      `json:".tag"`
+	Name            string      `json:"name"`
+	Id              string      `json:"id"`
+	Client_modified string      `json:"client_modified"`
+	Server_modified string      `json:"server_modified"`
+	Rev             string      `json:"rev"`
+	Size            int         `json:"size"`
+	Path_lower      string      `json:"path_lower"`
+	Path_display    string      `json:"path_display"`
+	Sharing_info    interface{} `json:"sharing_info"`
+	Property_groups interface{} `json:"property_groups"`
+	Shared          bool        `json:"has_explicit_shared_members"`
+	Content_hash    string      `json:"content_hash"`
+}
+
+type fileListDropbox struct {
+	Entries  []fileEnumDropboxStruct `json:"entries"`
+	Cursor   string                  `json:"cursor"`
+	Has_more bool                    `json:"has_more"`
+}
+
 // función para comprobar errores (ahorra escritura)
 func chk(e error) {
 	if e != nil {
