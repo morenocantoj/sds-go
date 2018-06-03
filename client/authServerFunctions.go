@@ -92,6 +92,7 @@ func loginTwoAuth(client *http.Client, tokenSesion string) bool {
 	fmt.Printf("Debes aplicar el valor de doble autenticación: ")
 	var googleauth string
 	fmt.Scanf("%s\n", &googleauth)
+	fmt.Print("\n")
 
 	data := url.Values{}
 	data.Set("cmd", "doublelogin")

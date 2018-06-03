@@ -4,6 +4,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"io/ioutil"
+	"os"
 )
 
 // función para cifrar (con AES en este caso), adjunta el IV al principio
@@ -57,4 +58,13 @@ func readFile(filename string) ([]byte, error) {
 	chk(err)
 
 	return file, nil
+}
+
+func deleteFile(filename string) (bool, error) {
+	var src = "./files/" + filename
+
+	err := os.Remove(src)
+	chk(err)
+
+	return true, nil
 }

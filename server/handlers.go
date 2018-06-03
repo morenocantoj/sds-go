@@ -42,9 +42,7 @@ func handlerPackageUpload(w http.ResponseWriter, req *http.Request) {
 	var data filePartStruct
 
 	mediaType, params, err := mime.ParseMediaType(req.Header.Get("Content-Type"))
-	if err != nil {
-		log.Fatal(err)
-	}
+	chk(err)
 
 	if strings.HasPrefix(mediaType, "multipart/") {
 		mr := multipart.NewReader(req.Body, params["boundary"])
@@ -53,14 +51,10 @@ func handlerPackageUpload(w http.ResponseWriter, req *http.Request) {
 			if err == io.EOF {
 				break
 			}
-			if err != nil {
-				log.Fatal(err)
-			}
+			chk(err)
 
 			slurp, err := ioutil.ReadAll(p)
-			if err != nil {
-				log.Fatal(err)
-			}
+			chk(err)
 
 			switch p.FormName() {
 			case "file":
@@ -323,7 +317,6 @@ func handlerFileList(w http.ResponseWriter, req *http.Request) {
 		files = append(files, file)
 	}
 	defer db.Close()
-	fmt.Printf("Slice: %v\n", files)
 
 	responseFilesList(w, files)
 }
@@ -359,20 +352,20 @@ func handlerFileDownload(w http.ResponseWriter, req *http.Request) {
 	fileId, err := getFileId(userFileId, lastFileVersion)
 	chk(err)
 
-	packageIds, err := getFilePackages(fileId)
+	packages, err := getFilePackages(fileId)
 	chk(err)
 
 	var fileContent []byte
 	//packages := make(map[int][]byte)
 
-	for _, packageId := range packageIds {
-		packageUuid, uploadUserId, err := getPackageUuid(packageId)
+	for _, filePackage := range packages {
+		filePackage, err := getPackage(filePackage.package_id)
 		chk(err)
 
-		secretKey, err := getUserSecretKeyById(uploadUserId)
+		secretKey, err := getUserSecretKeyById(filePackage.upload_user_id)
 		chk(err)
 
-		packageContent, err := readFile(packageUuid)
+		packageContent, err := readFile(filePackage.uuid)
 		chk(err)
 
 		// decrypt package with user's secret key who's uploaded
@@ -411,30 +404,82 @@ func handlerFileDelete(w http.ResponseWriter, req *http.Request) {
 	response := downloadFileResponse{Ok: false, Msg: ""}
 	if req.Method != "DELETE" {
 		response.Msg = "Only DELETE is supported!"
-		rJSON, err := json.Marshal(&response) // codificamos en JSON
-		chk(err)                              // comprobamos error
+		rJSON, err := json.Marshal(&response)
+		chk(err)
 		w.Write(rJSON)
 		return
 	}
 
+	// ID del archivo a borrar
 	userFileIdInString := req.URL.Query().Get("file")
 	userFileId, err := strconv.Atoi(userFileIdInString)
 
-	fileVersionIds, err := checkUserFileLastVersion(userFileId)
-	chk(err)
-	if fileVersionIds == -1 {
-		response.Msg = "ERROR! No se encuentra el archivo introducido"
-		rJSON, err := json.Marshal(&response) // codificamos en JSON
-		chk(err)                              // comprobamos error
+	// ID del usuario actual
+	bearerToken, err := GetBearerToken(req.Header.Get("Authorization"))
+	chkErrorPackageUpload(err, w)
+	userId := getUserIdFromToken(bearerToken)
+
+	// Comprobamos que el usuario tenga permisos para borrar el archivo
+	isOwner, err := checkUserFileBelongsToUser(userId, userFileId)
+	if isOwner == false {
+		response.Msg = "ERROR! No eres el propietario del archivo introducido"
+		rJSON, err := json.Marshal(&response)
+		chk(err)
 		w.Write(rJSON)
 		return
 	}
+
+	// Obtiene todos los distintos archivos (versiones de un mismo archivo) y comprueba que exista el archivo introducido
+	fileVersions, err := getAllFileVersions(userFileId)
+	chk(err)
+	if len(fileVersions) <= 0 {
+		response.Msg = "ERROR! No se encuentra el archivo introducido"
+		rJSON, err := json.Marshal(&response)
+		chk(err)
+		w.Write(rJSON)
+		return
+	}
+
+	for _, file := range fileVersions {
+		// Obtiene todos los paquetes de una version de un archivo
+		filePackages, err := getFilePackages(file.id)
+		chk(err)
+
+		for _, filePackage := range filePackages {
+			// Comprueba que otros archivos no dependan de ese paquete
+			otherFilesUsingPackage, err := getOtherFilesUsingPackage(filePackage.package_id, file.id)
+			chk(err)
+			if len(otherFilesUsingPackage) <= 0 {
+				// Borrar paquete en Storage
+				packageInfo, err := getPackage(filePackage.package_id)
+				chk(err)
+
+				_, err = deleteFile(packageInfo.uuid)
+				chk(err)
+
+				// Borrar paquete en BD
+				_, err = deletePackageInDatabase(filePackage.package_id)
+				chk(err)
+
+				fmt.Printf("Borrado paquete: %s", filePackage.package_id)
+			}
+		}
+
+		// Borrar de file_packages, files
+		_, err = deleteFilePackages(file.id)
+		chk(err)
+		_, err = deleteFileInDatabase(file.id)
+		chk(err)
+	}
+	// Borrar de user_files
+	_, err = deleteUserFile(userFileId)
+	chk(err)
 
 	response.Ok = true
 	response.Msg = "Listo"
 
-	rJSON, err := json.Marshal(&response) // codificamos en JSON
-	chk(err)                              // comprobamos error
+	rJSON, err := json.Marshal(&response)
+	chk(err)
 	w.Write(rJSON)
 }
 
