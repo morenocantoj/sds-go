@@ -30,98 +30,6 @@ import (
 
 var jwtSecret = ""
 
-const DROPBOX_SECRET = "n9ug1wz16s552yc"                                                 // Secret key
-const DROPBOX_TOKEN = "u-OwWgvnlFEAAAAAAAAI9xFBLVcj7VKkUnHVJIbNvcf7d8DJnOrjJP_wRa_bJdK5" // Auth token
-const DROPBOX_ID = "lwv5hhnokvemo6k"                                                     // App key
-const DATA_SOURCE_NAME = "sds:sds@tcp(127.0.0.1:3306)/sds"
-
-type JwtToken struct {
-	Token string `json:"token"`
-}
-
-// respuesta del servidor
-type resp struct {
-	Ok  bool   // true -> correcto, false -> error
-	Msg string // mensaje adicional
-}
-
-type respLogin struct {
-	Ok        bool   // true -> correcto, false -> error
-	TwoFa     bool   // Two Factor enabled
-	Msg       string // mensaje adicional
-	Token     string
-	SecretKey string
-}
-
-type respCreateDropboxFolder struct {
-	Created bool
-	Msg     string
-}
-
-type user struct {
-	username string
-	password string
-}
-
-type Exception struct {
-	Message string `json:"message"`
-}
-
-type OtpToken struct {
-	Token string
-}
-
-type twoFactorStruct struct {
-	Ok    bool
-	Token string
-}
-
-type DropboxDownloadStruct struct {
-	Name            string `json:"name"`
-	Path_lower      string `json:"path_lower"`
-	Path_display    string `json:"path_display"`
-	Id              string `json:"id"`
-	Client_modified string `json:"client_modified"`
-	Server_modified string `json:"server_modified"`
-	Rev             string `json:"rev"`
-	Size            int    `json:"size"`
-	Content_hash    string `json:"content_hash"`
-}
-
-type DropboxDownloadResponse struct {
-	Downloaded bool
-	Content    []byte
-	Filename   string
-	Checksum   string
-}
-type fileEnumStruct struct {
-	Id       string
-	Filename string
-}
-
-type fileEnumDropboxStruct struct {
-	Tag             string      `json:".tag"`
-	Name            string      `json:"name"`
-	Id              string      `json:"id"`
-	Client_modified string      `json:"client_modified"`
-	Server_modified string      `json:"server_modified"`
-	Rev             string      `json:"rev"`
-	Size            int         `json:"size"`
-	Path_lower      string      `json:"path_lower"`
-	Path_display    string      `json:"path_display"`
-	Sharing_info    interface{} `json:"sharing_info"`
-	Property_groups interface{} `json:"property_groups"`
-	Shared          bool        `json:"has_explicit_shared_members"`
-	Content_hash    string      `json:"content_hash"`
-}
-
-type fileList []fileEnumStruct
-type fileListDropbox struct {
-	Entries  []fileEnumDropboxStruct `json:"entries"`
-	Cursor   string                  `json:"cursor"`
-	Has_more bool                    `json:"has_more"`
-}
-
 func loginfo(title string, msg string, function string, level string, err error) {
 	switch level {
 	case "trace":
@@ -371,6 +279,7 @@ func server() {
 	mux.HandleFunc("/files/uploadPackage", validateMiddleware(handlerPackageUpload))
 	mux.HandleFunc("/files/saveFile", validateMiddleware(handlerFileSave))
 	mux.HandleFunc("/files/download", validateMiddleware(handlerFileDownload))
+	mux.HandleFunc("/files/delete", validateMiddleware(handlerFileDelete))
 
 	srv := &http.Server{Addr: ":10443", Handler: mux}
 

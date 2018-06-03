@@ -17,39 +17,6 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
-type fileInfoStruct struct {
-	filename   string
-	extension  string
-	packageIds []string
-	checksum   string
-	size       int
-}
-
-type checkFileResponse struct {
-	Ok  bool
-	Id  int
-	Msg string
-}
-
-type uploadPackageResponse struct {
-	Ok  bool
-	Id  int
-	Msg string
-}
-
-type saveFileResponse struct {
-	Ok  bool
-	Msg string
-}
-
-type downloadFileResponse struct {
-	Ok          bool
-	Msg         string
-	FileContent []byte
-	FileName    string
-	Checksum    string
-}
-
 func chkErrorPackageUpload(err error, w http.ResponseWriter) {
 	if err != nil {
 		log.Fatal(err)
@@ -360,6 +327,15 @@ func handlerFileList(w http.ResponseWriter, req *http.Request) {
 }
 
 func handlerFileDownload(w http.ResponseWriter, req *http.Request) {
+	response := downloadFileResponse{Ok: false, Msg: "", FileContent: nil, FileName: "", Checksum: ""}
+	if req.Method != "GET" {
+		response.Msg = "Only GET is supported!"
+		rJSON, err := json.Marshal(&response) // codificamos en JSON
+		chk(err)                              // comprobamos error
+		w.Write(rJSON)
+		return
+	}
+
 	userFileIdInString := req.URL.Query().Get("file")
 	userFileId, err := strconv.Atoi(userFileIdInString)
 
@@ -371,6 +347,10 @@ func handlerFileDownload(w http.ResponseWriter, req *http.Request) {
 	lastFileVersion, err := checkUserFileLastVersion(userFileId)
 	chk(err)
 	if lastFileVersion == -1 {
+		response.Msg = "ERROR! No se encuentra el archivo introducido"
+		rJSON, err := json.Marshal(&response) // codificamos en JSON
+		chk(err)                              // comprobamos error
+		w.Write(rJSON)
 		return
 	}
 
@@ -414,14 +394,44 @@ func handlerFileDownload(w http.ResponseWriter, req *http.Request) {
 	fileName, err := getUserFileName(userFileId)
 	chk(err)
 
-	var downloadFile downloadFileResponse
-	downloadFile.Ok = true
-	downloadFile.Msg = "Listo"
-	downloadFile.FileContent = fileContentEncrypted
-	downloadFile.FileName = fileName
-	downloadFile.Checksum = fileChecksum
+	response.Ok = true
+	response.Msg = "Listo"
+	response.FileContent = fileContentEncrypted
+	response.FileName = fileName
+	response.Checksum = fileChecksum
 
-	rJSON, err := json.Marshal(&downloadFile) // codificamos en JSON
-	chk(err)                                  // comprobamos error
+	rJSON, err := json.Marshal(&response) // codificamos en JSON
+	chk(err)                              // comprobamos error
+	w.Write(rJSON)
+}
+
+func handlerFileDelete(w http.ResponseWriter, req *http.Request) {
+	response := downloadFileResponse{Ok: false, Msg: ""}
+	if req.Method != "DELETE" {
+		response.Msg = "Only DELETE is supported!"
+		rJSON, err := json.Marshal(&response) // codificamos en JSON
+		chk(err)                              // comprobamos error
+		w.Write(rJSON)
+		return
+	}
+
+	userFileIdInString := req.URL.Query().Get("file")
+	userFileId, err := strconv.Atoi(userFileIdInString)
+
+	fileVersionIds, err := checkUserFileLastVersion(userFileId)
+	chk(err)
+	if fileVersionIds == -1 {
+		response.Msg = "ERROR! No se encuentra el archivo introducido"
+		rJSON, err := json.Marshal(&response) // codificamos en JSON
+		chk(err)                              // comprobamos error
+		w.Write(rJSON)
+		return
+	}
+
+	response.Ok = true
+	response.Msg = "Listo"
+
+	rJSON, err := json.Marshal(&response) // codificamos en JSON
+	chk(err)                              // comprobamos error
 	w.Write(rJSON)
 }

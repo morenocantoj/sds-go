@@ -6,19 +6,6 @@ import (
 	"io/ioutil"
 )
 
-type filePartStruct struct {
-	filename string
-	index    int
-	checksum string
-	content  []byte
-}
-
-type fileStruct struct {
-	name      string
-	extension string
-	content   []byte
-}
-
 // función para cifrar (con AES en este caso), adjunta el IV al principio
 func encrypt(data, key []byte) (out []byte) {
 	out = make([]byte, len(data)+16)    // reservamos espacio para el IV al principio
