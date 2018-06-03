@@ -116,3 +116,7 @@ func loginTwoAuth(client *http.Client, tokenSesion string) bool {
 
 	return false
 }
+
+func checkTokenAuth(tokenVar tokenValid) bool {
+	return tokenVar.Code != 401
+}

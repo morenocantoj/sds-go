@@ -95,6 +95,14 @@ func uploadFileDropboxClient(client *http.Client, token string) {
 	var uploadResponse uploadFileDropbox
 	err = json.Unmarshal(b, &uploadResponse)
 
+	// Verify token
+	var tokenValid tokenValid
+	_ = json.Unmarshal(b, &tokenValid)
+	if !checkTokenAuth(tokenValid) {
+		fmt.Println("Sesión caducada! Loguéate de nuevo para continuar!")
+		return
+	}
+
 	fmt.Printf("\n%s\n\n", uploadResponse.Msg)
 }
 
@@ -113,6 +121,15 @@ func listFilesDropboxClient(client *http.Client, token string) {
 
 	var filesDropbox fileListDropbox
 	err = json.Unmarshal(b, &filesDropbox)
+
+	// Verify token
+	var tokenValid tokenValid
+	_ = json.Unmarshal(b, &tokenValid)
+	if !checkTokenAuth(tokenValid) {
+		fmt.Println("Sesión caducada! Loguéate de nuevo para continuar!")
+		return
+	}
+
 	if err != nil {
 		fmt.Println("\n¡Ha habido un error en la petición!\n")
 	} else {
@@ -157,6 +174,14 @@ func downloadFileDropboxClient(client *http.Client, token string) {
 	err = json.Unmarshal(b, &downloadedFile)
 	chk(err)
 
+	// Verify token
+	var tokenValid tokenValid
+	_ = json.Unmarshal(b, &tokenValid)
+	if !checkTokenAuth(tokenValid) {
+		fmt.Println("Sesión caducada! Loguéate de nuevo para continuar!")
+		return
+	}
+
 	if downloadedFile.Downloaded == true {
 		// Compare file checksum
 		checksumFile := sha256.Sum256(downloadedFile.Content)
@@ -197,6 +222,14 @@ func createDropboxFolderClient(client *http.Client, token string) {
 
 	var dropboxFolderResponse createDropboxFolder
 	err = json.Unmarshal(b, &dropboxFolderResponse)
+
+	// Verify token
+	var tokenValid tokenValid
+	_ = json.Unmarshal(b, &tokenValid)
+	if !checkTokenAuth(tokenValid) {
+		fmt.Println("Sesión caducada! Loguéate de nuevo para continuar!")
+		return
+	}
 
 	if dropboxFolderResponse.Created {
 		fmt.Println(dropboxFolderResponse.Msg)
