@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bytes"
-	"crypto/sha256"
 	"database/sql"
 	"encoding/base32"
 	"encoding/json"
@@ -339,12 +337,23 @@ func handlerFileDownload(w http.ResponseWriter, req *http.Request) {
 	chkErrorPackageUpload(err, w)
 	userId := getUserIdFromToken(bearerToken)
 
+	// Comprobamos que el usuario tenga permisos para descargar el archivo
+	isOwner, err := checkUserFileBelongsToUser(userId, userFileId)
+	if isOwner == false {
+		response.Msg = "ERROR! No eres el propietario del archivo introducido"
+		rJSON, err := json.Marshal(&response)
+		chk(err)
+		w.Write(rJSON)
+		return
+	}
+
+	// Recuperamos el archivo perteneciente a la última versión
 	lastFileVersion, err := checkUserFileLastVersion(userFileId)
 	chk(err)
 	if lastFileVersion == -1 {
 		response.Msg = "ERROR! No se encuentra el archivo introducido"
-		rJSON, err := json.Marshal(&response) // codificamos en JSON
-		chk(err)                              // comprobamos error
+		rJSON, err := json.Marshal(&response)
+		chk(err)
 		w.Write(rJSON)
 		return
 	}
@@ -352,32 +361,34 @@ func handlerFileDownload(w http.ResponseWriter, req *http.Request) {
 	fileId, err := getFileId(userFileId, lastFileVersion)
 	chk(err)
 
+	// Obtenemos todos los paquetes que conforman un archivo
 	packages, err := getFilePackages(fileId)
 	chk(err)
 
 	var fileContent []byte
-	//packages := make(map[int][]byte)
 
 	for _, filePackage := range packages {
+		// Obtenemos los datos del paquete
 		filePackage, err := getPackage(filePackage.package_id)
 		chk(err)
 
+		// Recuperamos la secret_key con la que ha sido cifrado el archivo
 		secretKey, err := getUserSecretKeyById(filePackage.upload_user_id)
 		chk(err)
 
+		// Leemos el contenido del paquete
 		packageContent, err := readFile(filePackage.uuid)
 		chk(err)
 
-		// decrypt package with user's secret key who's uploaded
+		// Desciframos el paquete
 		key, err := base32.StdEncoding.DecodeString(secretKey)
 		chk(err)
 		packageContentDecryted := decrypt(packageContent, key)
 
 		fileContent = append(fileContent, packageContentDecryted...)
-		//packages[packageIndex] = packageContent
 	}
 
-	// encrypt file content with requested user's secret key
+	// Encriptamos el archivo resultante con la secret_key del usuario loggeado
 	userSecretKey, err := getUserSecretKeyById(userId)
 	chk(err)
 	userKey, err := base32.StdEncoding.DecodeString(userSecretKey)
@@ -395,8 +406,8 @@ func handlerFileDownload(w http.ResponseWriter, req *http.Request) {
 	response.FileName = fileName
 	response.Checksum = fileChecksum
 
-	rJSON, err := json.Marshal(&response) // codificamos en JSON
-	chk(err)                              // comprobamos error
+	rJSON, err := json.Marshal(&response)
+	chk(err)
 	w.Write(rJSON)
 }
 
@@ -481,98 +492,4 @@ func handlerFileDelete(w http.ResponseWriter, req *http.Request) {
 	rJSON, err := json.Marshal(&response)
 	chk(err)
 	w.Write(rJSON)
-}
-
-func uploadFileDropbox(w http.ResponseWriter, req *http.Request) {
-	// Get user params
-	bearerToken, err := GetBearerToken(req.Header.Get("Authorization"))
-	chk(err)
-	folderId := strconv.Itoa(getUserIdFromToken(bearerToken))
-
-	loginfo("uploadFileDropbox", "Usuario "+folderId+" intenta subir un archivo a Dropbox", "Dropbox API", "info", nil)
-
-	mediaType, params, err := mime.ParseMediaType(req.Header.Get("Content-Type"))
-	chk(err)
-
-	var fileData []byte
-	var checksum string
-	var filename string
-
-	if strings.HasPrefix(mediaType, "multipart/") {
-		mr := multipart.NewReader(req.Body, params["boundary"])
-		for {
-			p, err := mr.NextPart()
-			if err == io.EOF {
-				break
-			}
-			chk(err)
-
-			slurp, err := ioutil.ReadAll(p)
-			chk(err)
-
-			switch p.FormName() {
-			case "file":
-				// Send file to dropbox
-				fileData = slurp
-			case "filename":
-				filename = string(slurp)
-			case "checksum":
-				checksum = string(slurp)
-			default:
-			}
-		}
-
-		// File checksum
-		checksumFile := sha256.Sum256(fileData)
-		slice := checksumFile[:]
-		checksumString := encode64(slice)
-
-		if checksumString != checksum {
-			// Not the same file
-			responseUploadFileDropbox(w, false, "¡Error! El fichero recibido no concuerda con el enviado")
-
-		} else {
-			// Upload file to dropbox
-			// Make request for dropbox
-			clientDropbox := &http.Client{}
-			body := &bytes.Buffer{}
-			writer := multipart.NewWriter(body)
-
-			reader := bytes.NewReader(fileData)
-
-			part, err := writer.CreateFormFile("prueba.txt", "prueba.txt")
-			chk(err)
-
-			_, err = io.Copy(part, reader)
-			chk(err)
-
-			err = writer.Close()
-			chk(err)
-
-			path := "/" + folderId + "/" + filename
-			dropboxHeader := `{"path": "` + path + `", "mode": "add", "autorename": true, "mute": false}`
-
-			req, err = http.NewRequest("POST", "https://content.dropboxapi.com/2/files/upload", body)
-
-			chk(err)
-			req.Header.Add("Content-Type", writer.FormDataContentType())
-			req.Header.Add("Content-Type", "application/octet-stream")
-			req.Header.Set("Authorization", "Bearer "+DROPBOX_TOKEN)
-			req.Header.Set("Dropbox-API-Arg", dropboxHeader)
-
-			resp, err := clientDropbox.Do(req)
-			chk(err)
-
-			// Get body response
-			b, _ := ioutil.ReadAll(resp.Body)
-			respDropbox := string(b)
-
-			if strings.Contains(respDropbox, "name") && strings.Contains(respDropbox, "content_hash") && strings.Contains(respDropbox, "id") {
-				responseUploadFileDropbox(w, true, "¡Fichero subido a dropbox correctamente!")
-			} else {
-				responseUploadFileDropbox(w, false, "¡Error al subir el fichero! Inténtalo de nuevo")
-			}
-		}
-
-	}
 }
