@@ -6,4 +6,4 @@ const DROPBOX_TOKEN = "u-OwWgvnlFEAAAAAAAAI9xFBLVcj7VKkUnHVJIbNvcf7d8DJnOrjJP_wR
 const DROPBOX_ID = "lwv5hhnokvemo6k"
 
 // Database connection string                                                 // App key
-const DATA_SOURCE_NAME = "sds:sds@tcp(127.0.0.1:3307)/sds"
+const DATA_SOURCE_NAME = "sds:sds@tcp(127.0.0.1:3306)/sds"
