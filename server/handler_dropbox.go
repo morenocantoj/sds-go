@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"io"
 	"io/ioutil"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"strconv"
 	"strings"
@@ -166,4 +168,98 @@ func listFilesDropbox(w http.ResponseWriter, req *http.Request) {
 	chk(err)
 
 	responseListFilesDropbox(w, filesDropbox)
+}
+
+func uploadFileDropbox(w http.ResponseWriter, req *http.Request) {
+	// Get user params
+	bearerToken, err := GetBearerToken(req.Header.Get("Authorization"))
+	chk(err)
+	folderId := strconv.Itoa(getUserIdFromToken(bearerToken))
+
+	loginfo("uploadFileDropbox", "Usuario "+folderId+" intenta subir un archivo a Dropbox", "Dropbox API", "info", nil)
+
+	mediaType, params, err := mime.ParseMediaType(req.Header.Get("Content-Type"))
+	chk(err)
+
+	var fileData []byte
+	var checksum string
+	var filename string
+
+	if strings.HasPrefix(mediaType, "multipart/") {
+		mr := multipart.NewReader(req.Body, params["boundary"])
+		for {
+			p, err := mr.NextPart()
+			if err == io.EOF {
+				break
+			}
+			chk(err)
+
+			slurp, err := ioutil.ReadAll(p)
+			chk(err)
+
+			switch p.FormName() {
+			case "file":
+				// Send file to dropbox
+				fileData = slurp
+			case "filename":
+				filename = string(slurp)
+			case "checksum":
+				checksum = string(slurp)
+			default:
+			}
+		}
+
+		// File checksum
+		checksumFile := sha256.Sum256(fileData)
+		slice := checksumFile[:]
+		checksumString := encode64(slice)
+
+		if checksumString != checksum {
+			// Not the same file
+			responseUploadFileDropbox(w, false, "¡Error! El fichero recibido no concuerda con el enviado")
+
+		} else {
+			// Upload file to dropbox
+			// Make request for dropbox
+			clientDropbox := &http.Client{}
+			body := &bytes.Buffer{}
+			writer := multipart.NewWriter(body)
+
+			reader := bytes.NewReader(fileData)
+
+			part, err := writer.CreateFormFile("prueba.txt", "prueba.txt")
+			chk(err)
+
+			_, err = io.Copy(part, reader)
+			chk(err)
+
+			err = writer.Close()
+			chk(err)
+
+			path := "/" + folderId + "/" + filename
+			dropboxHeader := `{"path": "` + path + `", "mode": "add", "autorename": true, "mute": false}`
+
+			req, err = http.NewRequest("POST", "https://content.dropboxapi.com/2/files/upload", body)
+
+			chk(err)
+			req.Header.Add("Content-Type", writer.FormDataContentType())
+			req.Header.Add("Content-Type", "application/octet-stream")
+			req.Header.Set("Authorization", "Bearer "+DROPBOX_TOKEN)
+			req.Header.Set("Dropbox-API-Arg", dropboxHeader)
+
+			resp, err := clientDropbox.Do(req)
+			chk(err)
+
+			// Get body response
+			b, _ := ioutil.ReadAll(resp.Body)
+			respDropbox := string(b)
+
+			if strings.Contains(respDropbox, "name") && strings.Contains(respDropbox, "content_hash") && strings.Contains(respDropbox, "id") {
+				responseUploadFileDropbox(w, true, "¡Fichero subido a dropbox correctamente!")
+			} else {
+				responseUploadFileDropbox(w, false, "¡Error al subir el fichero! Inténtalo de nuevo")
+			}
+		}
+
+	}
 }
